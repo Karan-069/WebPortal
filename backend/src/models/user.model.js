@@ -39,7 +39,6 @@ const UserSchema = new Schema (
         accessType:{
             type: String,
             enum: ["user", "vendor"],
-            default: "user"
         },
         isActive:{
             type: Boolean,
