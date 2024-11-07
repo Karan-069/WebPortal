@@ -16,10 +16,11 @@ app.use(express.static("public"));
 app.use(cookieParser());
 
 //Importing Routes.
-import userRouter from "./rotues/user.routes.js";
-
+import userRouter from "./src/routes/user.routes.js";
+import departmentRouter from "./src/routes/department.routes.js"
 
 // Declearing Routes.
 app.use("/api/v1/users", userRouter);
+app.use("/api/v1/departments", departmentRouter);
 
 export { app }

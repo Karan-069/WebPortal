@@ -23,7 +23,7 @@ const generateAccessTokenAndRefreshTokens = async(userId) => {
         return { accessToken , refreshToken }
 
     } catch (error) {
-        throw new ApiError(500, "Error while Generating Tokens !!")
+        throw new ApiError(500, error?.message || "Error while Generating Tokens !!")
     }
 };
 
@@ -66,6 +66,7 @@ const registerUser = asyncHandler(async(req, res) =>{
     if (!getWorkflowRole || !getWorkflowRole.isActive) {
         throw new ApiError(400, "Workflow Role does not exists or is InActive!!")
     }
+
 
     const newUser = await User.create({
         email,
