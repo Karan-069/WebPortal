@@ -129,6 +129,9 @@ const billSchema = new Schema(
         billTotalAmount:{
             type : mongoose.Types.Decimal128
         },
+        attachmnetUrl:{
+            type: String
+        },
         itemDetails: [itemDetailSchema]
 
     },

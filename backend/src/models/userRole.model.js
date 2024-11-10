@@ -6,21 +6,25 @@ const userRoleSchema = new Schema(
             type: String,
             required: [true, "Role Code is Mandatory!!"],
             unique: true
-        },        
-        menuId:{
-            type: Schema.Types.ObjectId,
-            ref: "appMenu",
-            required: [true, "Menu is Mandatory!!"]
-        },
+        },    
         description:{
             type: String,
-            required: true
-        },
-        permissions:{
-            type: [String],
-            enum: ["add","edit","approve","view","submit"],
-            required: [true, "Permissions are Mandatory!!"]
-        },
+            required:[true, "Description is Mandatory!!"]
+        },  
+        menus: [
+            {
+                menuId: {
+                    type: Schema.Types.ObjectId,
+                    ref: "appMenu",
+                    required: [true, "Menu ID is Mandatory!!"]
+                },
+                permissions: {
+                    type: [String],
+                    enum: ["add", "edit", "approve", "view", "submit","all"],
+                    required: [true, "Permissions are Mandatory!!"]
+                }
+            }
+        ],
         isActive:{
             type: Boolean,
             default: true

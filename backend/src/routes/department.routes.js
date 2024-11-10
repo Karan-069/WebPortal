@@ -1,21 +1,22 @@
 import { Router } from "express";
-import {verfyJWT } from "../middlewares/auth.middleware.js";
-import { addDepartment, getDepartmentById, getDepartments } from "../controllers/department.controller";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
+import {
+  addDepartment,
+  deactivateDepartment,
+  getDepartmentById,
+  getDepartments,
+  updateDepartment,
+} from "../controllers/department.controller.js";
 const router = Router();
 
 //Auth
-router.use(verfyJWT);
+router.use(verifyJWT);
 
 //Routes
-router.route("/")
-    .get(getDepartments)
-    .post(addDepartment)
+router.route("/").get(getDepartments).post(addDepartment);
 
-router.route("/:deptId")
-    .get(getDepartmentById)
-    .put()
-    .delete()
+router.route("/:deptId").get(getDepartmentById).put(updateDepartment); // For updates
 
-
+router.route("/:deptId/deactivate").put(deactivateDepartment); // For deactivation
 
 export default router;
