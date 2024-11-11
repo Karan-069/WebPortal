@@ -28,6 +28,9 @@ const getDepartments = asyncHandler(async (req, res) => {
     }
   );
 
+  const paginateData = { ...departments };
+  delete paginateData.docs;
+
   // Return the paginated response in a consistent format
   return res
     .status(200)
@@ -36,7 +39,7 @@ const getDepartments = asyncHandler(async (req, res) => {
         200,
         departments.docs,
         "Departments fetched successfully",
-        departments
+        paginateData
       )
     );
 });

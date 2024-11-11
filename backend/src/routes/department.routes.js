@@ -7,10 +7,11 @@ import {
   getDepartments,
   updateDepartment,
 } from "../controllers/department.controller.js";
+
 const router = Router();
 
 //Auth
-router.use(verifyJWT);
+//router.use(verifyJWT);
 
 //Routes
 router.route("/").get(getDepartments).post(addDepartment);

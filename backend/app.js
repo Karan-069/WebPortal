@@ -20,10 +20,12 @@ app.use(cookieParser());
 import userRouter from "./src/routes/user.routes.js";
 import departmentRouter from "./src/routes/department.routes.js";
 import appMenuRouter from "./src/routes/appMenu.routes.js";
+import userRoleRouter from "./src/routes/userRoles.routes.js";
 
 // Declearing Routes.
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/departments", departmentRouter);
 app.use("/api/v1/menus", appMenuRouter);
+app.use("/api/v1/user-roles", userRoleRouter);
 
 export { app };
