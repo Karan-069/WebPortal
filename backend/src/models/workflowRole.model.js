@@ -3,18 +3,25 @@ import mongoosePaginate from "mongoose-paginate-v2";
 
 const workflowRoleSchema = new Schema(
   {
-    roleCode: {
+    wfRoleCode: {
       type: String,
-      required: [true, "Role Code is Mandatory!!"],
+      required: [true, "Workflow Role Code is Mandatory!!"],
       unique: true,
+      trim: true,
     },
     description: {
       type: String,
+      required: [true, "Description is Mandatory!!"],
     },
-    roleType: {
+    wfRoleType: {
       type: [String],
       enum: ["submit", "approve", "reject", "delegate"],
-      required: [true, "Role Type is Mandatory!!"],
+      required: [true, "Workflow Role Type is Mandatory!!"],
+      lowercase: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   {
