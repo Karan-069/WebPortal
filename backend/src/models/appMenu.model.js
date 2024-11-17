@@ -6,6 +6,8 @@ const appMenuSchema = new Schema(
     menuId: {
       type: String,
       required: [true, "Menu Id is Mandatory!!"],
+      trim: true,
+      unique: true,
     },
     description: {
       type: String,

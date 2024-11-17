@@ -125,7 +125,7 @@ const updateDepartment = asyncHandler(async (req, res) => {
   const updatedDepartment = await Department.findByIdAndUpdate(
     existingDepartment._id,
     { $set: updatedFields },
-    { new: true }
+    { new: true, runValidators: true }
   );
 
   // Return RES

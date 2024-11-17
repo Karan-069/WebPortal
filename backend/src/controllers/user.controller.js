@@ -6,6 +6,7 @@ import { UserRole } from "../models/userRole.model.js";
 import { Department } from "../models/department.model.js";
 import { WorkflowRole } from "../models/workflowRole.model.js";
 
+// Tokens Logic
 const generateAccessTokenAndRefreshTokens = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -27,6 +28,7 @@ const generateAccessTokenAndRefreshTokens = async (userId) => {
   }
 };
 
+// Register User Logic
 const registerUser = asyncHandler(async (req, res) => {
   const {
     email,
@@ -110,6 +112,7 @@ const registerUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, getNewuser, "User Sucessfully Registerd!!"));
 });
 
+// Login User Logic
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 

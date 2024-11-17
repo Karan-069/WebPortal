@@ -8,6 +8,7 @@ const userRoleSchema = new Schema(
       type: String,
       required: [true, "Role Code is Mandatory!!"],
       unique: true,
+      trim: true,
     },
     description: {
       type: String,

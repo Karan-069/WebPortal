@@ -57,7 +57,7 @@ const getUserRoleByID = asyncHandler(async (req, res) => {
   // Check RoleCode
   const getUserRole = await UserRole.findOne({ roleCode });
   if (!getUserRole) {
-    throw new ApiError(400, "User Role not Found!!");
+    throw new ApiError(404, "User Role not Found!!");
   }
 
   // Populate MenusIds
@@ -73,6 +73,10 @@ const getUserRoleByID = asyncHandler(async (req, res) => {
 // ADD User Logic
 const addUserRole = asyncHandler(async (req, res) => {
   const { roleCode, description, menus } = req.body;
+
+  if (!roleCode) {
+    throw new ApiError(400, "Role Code is Madatory!!");
+  }
 
   //Check exisitng Code
   const existingUserRole = await UserRole.findOne({ roleCode: roleCode });
@@ -147,7 +151,7 @@ const updateUserRole = asyncHandler(async (req, res) => {
         menus,
       },
     },
-    { new: true }
+    { new: true, runValidators: true }
   );
 
   if (!updatedUserRole) {
