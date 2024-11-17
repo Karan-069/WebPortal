@@ -2,11 +2,11 @@ import { Department } from "../models/department.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { softDeleteRecord } from "../utils/softDeleteRecord.js";
+import { toggleStatus } from "../utils/toggleStatus.js";
 
-// GET all Departments
+// GET all Departments Logic
 const getDepartments = asyncHandler(async (req, res) => {
-  const { page = 1, limit = 50, sortBy, sortOrder } = req.query; // Get queries with defaults for page and limit
+  const { page = 1, limit = 50, sortBy, sortOrder } = req.query;
 
   // Parse and validate pagination params
   const pageNum = parseInt(page) > 0 ? parseInt(page) : 1;
@@ -31,7 +31,7 @@ const getDepartments = asyncHandler(async (req, res) => {
   const paginateData = { ...departments };
   delete paginateData.docs;
 
-  // Return the paginated response in a consistent format
+  // Return the paginated response
   return res
     .status(200)
     .json(
@@ -59,16 +59,13 @@ const addDepartment = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Department Code already exists!!");
   }
 
-  // Create the department object
-  const departmentObject = {
+  // Create the department in the database
+  const department = await Department.create({
     departmentHead,
     deptCode,
     description,
     location,
-  };
-
-  // Create the department in the database
-  const department = await Department.create(departmentObject);
+  });
 
   // Send a success response with the newly created department
   return res
@@ -76,14 +73,13 @@ const addDepartment = asyncHandler(async (req, res) => {
     .json(new ApiResponse(201, department, "Department Successfully Created"));
 });
 
-// GET Department by ID
-
+// GET Department by ID Logic
 const getDepartmentById = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const { deptCode } = req.params;
 
-  const deptData = await Department.findById(id);
-
-  if (!deptData) {
+  //Check Department
+  const deptData = await Department.findOne({ deptCode });
+  if (deptData.length === 0) {
     throw new ApiError(404, "Department not Found!!");
   }
 
@@ -95,13 +91,13 @@ const getDepartmentById = asyncHandler(async (req, res) => {
     );
 });
 
-// Update Department logic
+// Update Department Logic
 const updateDepartment = asyncHandler(async (req, res) => {
-  const { id } = req.params; // Get department ID from URL params
+  const { deptCode } = req.params; // Get department Code from URL params
   const { departmentHead, description, location } = req.body; // Fields that may be updated
 
   // Fetch the existing department data from the database
-  const existingDepartment = await Department.findById(id);
+  const existingDepartment = await Department.findOne({ deptCode });
   if (!existingDepartment) {
     throw new ApiError(404, "Department not found!");
   }
@@ -120,19 +116,19 @@ const updateDepartment = asyncHandler(async (req, res) => {
     updatedFields.location = location;
   }
 
-  // If no fields have changed, return a 400 response
+  // Check changes
   if (Object.keys(updatedFields).length === 0) {
     throw new ApiError(400, "No changes detected!");
   }
 
-  // Apply the updates using the $set operator
+  // Update in DB
   const updatedDepartment = await Department.findByIdAndUpdate(
-    id,
+    existingDepartment._id,
     { $set: updatedFields },
-    { new: true } // Return the updated document
+    { new: true }
   );
 
-  // Respond with success message and updated department data
+  // Return RES
   return res
     .status(200)
     .json(
@@ -140,30 +136,26 @@ const updateDepartment = asyncHandler(async (req, res) => {
     );
 });
 
-const deactivateDepartment = asyncHandler(async (req, res) => {
-  const { deptId } = req.params;
+// Deactive Department Logic
+const toggleDepartmentStatus = asyncHandler(async (req, res) => {
+  const { deptCode } = req.params;
 
   // Fetch and check if the department exists
-  const existingDepartment = await Department.findById(deptId);
+  const existingDepartment = await Department.findOne({ deptCode });
   if (!existingDepartment) {
     throw new ApiError(400, "Department Not Found!!");
   }
 
-  // Deactivate the department
-  const deactivateDept = await softDeleteRecord(Department, deptId);
-  if (!deactivateDept) {
-    throw new ApiError(500, "Error deactivating the department.");
-  }
+  //Using Util to change status
+  const { updatedRecord, successMessage } = await toggleStatus(
+    Department,
+    existingDepartment._id
+  );
 
+  //Return RES
   return res
     .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        deactivateDept,
-        "Department Deactivated Successfully!!"
-      )
-    );
+    .json(new ApiResponse(200, updatedRecord, successMessage));
 });
 
 export {
@@ -171,5 +163,5 @@ export {
   addDepartment,
   getDepartmentById,
   updateDepartment,
-  deactivateDepartment,
+  toggleDepartmentStatus,
 };

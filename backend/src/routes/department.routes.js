@@ -2,22 +2,22 @@ import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import {
   addDepartment,
-  deactivateDepartment,
   getDepartmentById,
   getDepartments,
+  toggleDepartmentStatus,
   updateDepartment,
 } from "../controllers/department.controller.js";
 
 const router = Router();
 
 //Auth
-//router.use(verifyJWT);
+router.use(verifyJWT);
 
 //Routes
 router.route("/").get(getDepartments).post(addDepartment);
 
-router.route("/:deptId").get(getDepartmentById).put(updateDepartment); // For updates
+router.route("/:deptCode").get(getDepartmentById).patch(updateDepartment);
 
-router.route("/:deptId/deactivate").put(deactivateDepartment); // For deactivation
+router.route("/:deptCode/toggle-status").patch(toggleDepartmentStatus); // For Change Status
 
 export default router;

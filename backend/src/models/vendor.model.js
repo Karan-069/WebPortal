@@ -123,7 +123,10 @@ vendorSchema.methods.getFullAddress = async function () {
       .execPopulate();
     return this.fullAddress;
   } catch (error) {
-    throw new ApiError(500, "Error while Populating Vendor Data!!");
+    throw new ApiError(
+      500,
+      error?.message || "Error while Populating Vendor Data!!"
+    );
   }
 };
 
