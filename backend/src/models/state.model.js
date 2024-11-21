@@ -3,6 +3,11 @@ import mongoosePaginate from "mongoose-paginate-v2";
 
 const stateSchema = new Schema(
   {
+    stateCode: {
+      type: String,
+      required: true,
+      unique: true,
+    },
     description: {
       type: String,
       required: true,

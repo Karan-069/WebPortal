@@ -2,6 +2,7 @@ import { WorkflowRole } from "../models/workflowRole.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { toggleStatus } from "../utils/toggleStatus.js";
 
 const getWorkflowRole = asyncHandler(async (req, res) => {
   const { page = 1, limit = 50, sortBy, sortOrder } = req.query;
@@ -167,9 +168,29 @@ const updateWorkflowRole = asyncHandler(async (req, res) => {
     );
 });
 
+const toggleWorkflowRoleStatus = asyncHandler(async (req, res) => {
+  const { wfRoleCode } = req.params;
+
+  const existingWfRole = await WorkflowRole.findOne({ wfRoleCode });
+  if (!existingWfRole) {
+    throw new ApiError(400, "Invalid Workflow Role!!");
+  }
+
+  const { updatedRecord, successMessage } = await toggleStatus(
+    WorkflowRole,
+    existingWfRole._id
+  );
+
+  //Retrun RES
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updatedRecord, successMessage));
+});
+
 export {
   getWorkflowRole,
   getWorkflowRoleById,
   addWorkflowRole,
   updateWorkflowRole,
+  toggleWorkflowRoleStatus,
 };
