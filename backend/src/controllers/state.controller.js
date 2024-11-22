@@ -65,7 +65,7 @@ const getStateById = asyncHandler(async (req, res) => {
 
 //ADD State
 const addState = asyncHandler(async (req, res) => {
-  const { stateCode, description, gstCode, region } = req.body;
+  const { stateCode, description, gstCode, shortName, region } = req.body;
 
   if (!stateCode || !description || !gstCode) {
     throw new ApiError(400, "Sate Code, Description, Gst Code are Mandatory!!");
@@ -75,7 +75,10 @@ const addState = asyncHandler(async (req, res) => {
     $or: [{ stateCode }, { description }, { gstCode }],
   });
   if (checkduplicate) {
-    throw new ApiError(400, "Sate Code/ Description / gstCode Alrady exists!!");
+    throw new ApiError(
+      400,
+      "State Code/ Description / Gst Code Already exists!!"
+    );
   }
 
   const newStateCode = await State.create({
@@ -83,6 +86,7 @@ const addState = asyncHandler(async (req, res) => {
     description,
     gstCode,
     region,
+    shortName,
   });
 
   if (!newStateCode) {
@@ -98,7 +102,7 @@ const addState = asyncHandler(async (req, res) => {
 // UPDATE State
 const updateState = asyncHandler(async (req, res) => {
   const { stateCode } = req.params;
-  const { description, gstCode, region } = req.body;
+  const { description, gstCode, shortName, region } = req.body;
 
   const exisitngState = await State.findOne({ stateCode });
   if (!exisitngState) {
@@ -109,14 +113,17 @@ const updateState = asyncHandler(async (req, res) => {
   }
 
   const updateFields = {};
-  if (description !== exisitngState.description) {
+  if (description && description !== exisitngState.description) {
     updateFields.description = description;
   }
-  if (gstCode !== exisitngState.gstCode) {
+  if (gstCode && gstCode !== exisitngState.gstCode) {
     updateFields.gstCode = gstCode;
   }
-  if (region !== exisitngState.region) {
+  if (region && region !== exisitngState.region) {
     updateFields.region = region;
+  }
+  if (shortName && shortName !== exisitngState.shortName) {
+    updateFields.shortName = shortName;
   }
 
   if (Object.keys(updateFields).length === 0) {
