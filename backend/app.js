@@ -23,6 +23,7 @@ import appMenuRouter from "./src/routes/appMenu.routes.js";
 import userRoleRouter from "./src/routes/userRoles.routes.js";
 import workflowRoleRouter from "./src/routes/workflowRole.routes.js";
 import stateRouter from "./src/routes/state.routes.js";
+import cityRouter from "./src/routes/city.routes.js";
 
 // Declearing Routes.
 app.use("/api/v1/users", userRouter);
@@ -31,5 +32,6 @@ app.use("/api/v1/menus", appMenuRouter);
 app.use("/api/v1/user-roles", userRoleRouter);
 app.use("/api/v1/workflow-roles", workflowRoleRouter);
 app.use("/api/v1/states", stateRouter);
+app.use("/api/v1/cities", cityRouter);
 
 export { app };
