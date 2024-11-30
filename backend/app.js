@@ -25,6 +25,7 @@ import workflowRoleRouter from "./src/routes/workflowRole.routes.js";
 import stateRouter from "./src/routes/state.routes.js";
 import cityRouter from "./src/routes/city.routes.js";
 import crtermRouter from "./src/routes/crterm.routes.js";
+import subsidaryRouter from "./src/routes/subsidary.routes.js";
 
 // Declearing Routes.
 app.use("/api/v1/users", userRouter);
@@ -35,4 +36,6 @@ app.use("/api/v1/workflow-roles", workflowRoleRouter);
 app.use("/api/v1/states", stateRouter);
 app.use("/api/v1/cities", cityRouter);
 app.use("/api/v1/crterms", crtermRouter);
+app.use("/api/v1/subsidaries", subsidaryRouter);
+
 export { app };
