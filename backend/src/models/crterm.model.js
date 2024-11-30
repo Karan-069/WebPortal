@@ -6,6 +6,7 @@ const crtermSchema = new Schema(
     termCode: {
       type: String,
       required: [true, "Code is Mandatory!!"],
+      unique: true,
     },
     description: {
       type: String,
@@ -26,4 +27,4 @@ const crtermSchema = new Schema(
 
 crtermSchema.plugin(mongoosePaginate);
 
-export const Crtem = mongoose.model("Crterm", crtermSchema);
+export const Crterm = mongoose.model("Crterm", crtermSchema);

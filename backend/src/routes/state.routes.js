@@ -11,7 +11,7 @@ import {
 const router = Router();
 
 //Secure Routes
-//router.use(verifyJWT);
+router.use(verifyJWT);
 
 //Routes
 router.route("/").get(getStates).post(addState);
