@@ -11,7 +11,7 @@ import {
 const router = Router();
 
 //Auth
-//router.use(verifyJWT)
+router.use(verifyJWT);
 
 //Routes
 router.route("/").get(getSubsidaries).post(addSubsidary);

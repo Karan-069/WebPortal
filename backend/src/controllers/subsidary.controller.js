@@ -105,11 +105,11 @@ const addSubsidary = asyncHandler(async (req, res) => {
   // Check City and State are Present in DB
   const isCityValid = await City.findById(city);
   if (!isCityValid) {
-    throw new ApiError(400, "InValid City!!");
+    throw new ApiError(404, "InValid City!!");
   }
   const isStateValid = await State.findById(state);
   if (!isStateValid) {
-    throw new ApiError(400, "InValid State!!");
+    throw new ApiError(404, "InValid State!!");
   }
 
   const newSubsidary = await Subsidary.create({
@@ -147,7 +147,7 @@ const updateSubsidary = asyncHandler(async (req, res) => {
   //Check Duplicate SubCode
   const isSubCodeValid = await Subsidary.findOne({ subCode });
   if (!isSubCodeValid) {
-    throw new ApiError(400, "Invalid Subsidary Code!!");
+    throw new ApiError(404, "Invalid Subsidary Code!!");
   }
 
   // Check Valid City and State
@@ -161,11 +161,11 @@ const updateSubsidary = asyncHandler(async (req, res) => {
   // Check City and State are Present in DB
   const isCityValid = await City.findById(city);
   if (!isCityValid) {
-    throw new ApiError(400, "InValid City!!");
+    throw new ApiError(404, "InValid City!!");
   }
   const isStateValid = await State.findById(state);
   if (!isStateValid) {
-    throw new ApiError(400, "InValid State!!");
+    throw new ApiError(404, "InValid State!!");
   }
 
   const updateFields = {};
