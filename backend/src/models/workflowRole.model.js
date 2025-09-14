@@ -15,7 +15,7 @@ const workflowRoleSchema = new Schema(
     },
     wfRoleType: {
       type: [String],
-      enum: ["submit", "approve", "reject", "delegate"],
+      enum: ["submit", "approve", "reject", "delegate", "admin"],
       required: [true, "Workflow Role Type is Mandatory!!"],
       lowercase: true,
     },
