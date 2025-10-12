@@ -19,6 +19,9 @@ const subsidarySchema = new Schema(
     address2: {
       type: String,
     },
+    zipCode: {
+      type: Number,
+    },
     city: {
       type: Schema.Types.ObjectId,
       ref: "City",
