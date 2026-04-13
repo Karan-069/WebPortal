@@ -35,14 +35,17 @@ const userRoleSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 userRoleSchema.plugin(mongoosePaginate);
 
 userRoleSchema.methods.PopulateMenus = async function () {
   try {
-    await this.populate({ path: "menus.menuId", select: "menuId description" });
+    await this.populate({
+      path: "menus.menuId",
+      select: "menuId sortOrder parentMenu icon description",
+    });
   } catch (error) {
     throw new ApiError(500, error?.message || "Error while Populating MenuIds");
   }

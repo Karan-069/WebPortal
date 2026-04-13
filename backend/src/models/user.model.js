@@ -1,6 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
 import mongoosePaginate from "mongoose-paginate-v2";
+import jwt from "jsonwebtoken";
 
 const UserSchema = new Schema(
   {
@@ -49,11 +50,11 @@ const UserSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 UserSchema.pre("save", async function (next) {
-  if (!this.isModified) return next();
+  if (!this.isModified("password")) return next();
 
   this.password = await bcrypt.hash(this.password, 10);
   next();
@@ -76,7 +77,7 @@ UserSchema.methods.generateAccessToken = function () {
     process.env.JWT_ACCESS_SECRET_KEY,
     {
       expiresIn: process.env.JWT_ACCESS_EXPIRY,
-    }
+    },
   );
 };
 
@@ -89,7 +90,7 @@ UserSchema.methods.generateRefreshToken = function () {
     process.env.JWT_REFRESH_SECRET_KEY,
     {
       expiresIn: process.env.JWT_REFRESH_EXPIRY,
-    }
+    },
   );
 };
 
