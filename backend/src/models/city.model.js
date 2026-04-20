@@ -1,6 +1,8 @@
 import mongoose, { Schema } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
 import { ApiError } from "../utils/ApiError.js";
+import { auditPlugin } from "../utils/auditPlugin.js";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
 
 const citySchema = new Schema(
   {
@@ -28,24 +30,27 @@ const citySchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 citySchema.plugin(mongoosePaginate);
+citySchema.plugin(auditPlugin);
+citySchema.plugin(autoCodePlugin, { moduleName: "city" });
 
 citySchema.methods.PopulateState = async function () {
   try {
     await this.populate({
       path: "stateCode",
-      select: "description",
+      select: "stateCode description",
     });
     return this;
   } catch (error) {
     throw new ApiError(
       500,
-      error?.message || "An Error occured while Populating State!!"
+      error?.message || "An Error occured while Populating State!!",
     );
   }
 };
 
-export const City = mongoose.model("City", citySchema);
+// export const City = mongoose.model("City", citySchema);
+export { citySchema };

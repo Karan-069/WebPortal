@@ -11,13 +11,13 @@ import {
 const router = Router();
 
 //Auth
-//router.use(verifyJWT);
+router.use(verifyJWT);
 
 //Routes
 router.route("/").get(getCrterms).post(addCrterm);
 
-router.route("/:termCode").get(getCrtermById).patch(updateCrterm);
+router.route("/:id").get(getCrtermById).patch(updateCrterm);
 
-router.route("/:termCode/toggle-status").patch(toggleCrtermStatus);
+router.route("/:id/toggle-status").patch(toggleCrtermStatus);
 
 export default router;

@@ -1,6 +1,7 @@
 import mongoose, { Schema, SchemaType } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
-import { ApiError } from "../utils/ApiError";
+import { ApiError } from "../utils/ApiError.js";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
 
 const vendorSchema = new Schema(
   {
@@ -49,11 +50,13 @@ const vendorSchema = new Schema(
     subsidary: {
       type: Schema.Types.ObjectId,
       ref: "Subsidary",
+      index: true,
     },
     crterm: {
       type: Schema.Types.ObjectId,
       ref: "Crterm",
       required: [true, "Credit Term is Mandatory!!"],
+      index: true,
     },
     currency: {
       type: String,
@@ -83,6 +86,41 @@ const vendorSchema = new Schema(
       required: true,
       index: true,
     },
+    gstNo: {
+      type: String,
+    },
+    bankName: {
+      type: String,
+      trim: true,
+    },
+    accountNumber: {
+      type: String,
+      trim: true,
+    },
+    ifscCode: {
+      type: String,
+      trim: true,
+    },
+    beneficiaryName: {
+      type: String,
+      trim: true,
+    },
+    linkedUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    workflowStatus: {
+      type: String,
+      enum: [
+        "Draft",
+        "Pending Approval",
+        "Approved",
+        "Rejected",
+        "Clarification",
+      ],
+      default: "Draft",
+      index: true,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -90,7 +128,7 @@ const vendorSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Options to include virtuals when converting to JSON
@@ -125,33 +163,17 @@ vendorSchema.methods.getFullAddress = async function () {
   } catch (error) {
     throw new ApiError(
       500,
-      error?.message || "Error while Populating Vendor Data!!"
+      error?.message || "Error while Populating Vendor Data!!",
     );
   }
 };
 
-// Pre-save middleware for vendorId generation
-vendorSchema.pre("save", async function (next) {
-  if (this.isNew) {
-    try {
-      const nextVendorId = await NextTransactionId.findOneAndUpdate(
-        { menuId: "vendor" },
-        { $inc: { sequenceValue: 1 } },
-        { new: true, upsert: true } // Create if it doesn't exist
-      );
+// Universal Auto-Code Generation replaces custom logic below
+vendorSchema.plugin(autoCodePlugin, { moduleName: "vendor" });
 
-      const prefix = nextVendorId.prefix || "V";
-      this.vendorId = `${prefix}-${String(nextVendorId.sequenceValue).padStart(
-        3,
-        "0"
-      )}`;
-      next();
-    } catch (error) {
-      next(error); // Pass error to next middleware
-    }
-  }
-});
-
+import { auditPlugin } from "../utils/auditPlugin.js";
+vendorSchema.plugin(auditPlugin);
 vendorSchema.plugin(mongoosePaginate);
 
 export const Vendor = mongoose.model("Vendor", vendorSchema);
+export { vendorSchema };

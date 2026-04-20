@@ -1,5 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
+import { auditPlugin } from "../utils/auditPlugin.js";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
 
 const stateSchema = new Schema(
   {
@@ -31,9 +33,12 @@ const stateSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 stateSchema.plugin(mongoosePaginate);
+stateSchema.plugin(auditPlugin);
+stateSchema.plugin(autoCodePlugin, { moduleName: "state" });
 
-export const State = mongoose.model("State", stateSchema);
+// export const State = mongoose.model("State", stateSchema);
+export { stateSchema };

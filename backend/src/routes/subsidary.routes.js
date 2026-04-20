@@ -15,9 +15,7 @@ router.use(verifyJWT);
 
 //Routes
 router.route("/").get(getSubsidaries).post(addSubsidary);
-
-router.route("/:subCode").get(getSubsidaryById).patch(updateSubsidary);
-
-router.route("/:subCode/toggle-status").patch(toggleSubsidaryStatus);
+router.route("/:id").get(getSubsidaryById).patch(updateSubsidary);
+router.route("/:id/toggle-status").patch(toggleSubsidaryStatus);
 
 export default router;

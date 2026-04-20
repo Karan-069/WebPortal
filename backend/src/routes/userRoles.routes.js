@@ -14,9 +14,7 @@ const router = Router();
 router.use(verifyJWT);
 
 router.route("/").get(getUserRole).post(addUserRole);
-
-router.route("/:roleCode").get(getUserRoleByID).patch(updateUserRole);
-
-router.route("/:roleCode/toggle-status").patch(toggleUserRoleStatus); // Change Status
+router.route("/:id").get(getUserRoleByID).patch(updateUserRole);
+router.route("/:id/toggle-status").patch(toggleUserRoleStatus);
 
 export default router;

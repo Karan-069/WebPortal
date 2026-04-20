@@ -26,9 +26,12 @@ const workflowRoleSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
+import { auditPlugin } from "../utils/auditPlugin.js";
+workflowRoleSchema.plugin(auditPlugin);
 workflowRoleSchema.plugin(mongoosePaginate);
 
 export const WorkflowRole = mongoose.model("WorkflowRole", workflowRoleSchema);
+export { workflowRoleSchema };

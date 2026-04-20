@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { licenseCheck } from "../middlewares/license.middleware.js";
 import {
+  loginUser,
+  refreshToken,
   registerUser,
   getCurrentUser,
   getAllUsers,
@@ -8,23 +11,26 @@ import {
   deactivateUser,
   logoutUser,
   changeUserPassword,
+  switchRole,
 } from "../controllers/user.controller.js";
 
 const router = Router();
 
-//router.post("/register", verifyJWT, registerUser);
-router.post("/register", registerUser);
+// Public routes (no auth required)
+router.post("/login", loginUser);
+router.post("/refresh-token", refreshToken);
 
+// Protected routes
+//router.use();
+
+router.get("/", verifyJWT, getAllUsers);
+router.post("/", verifyJWT, licenseCheck, registerUser);
 router.get("/current-user", verifyJWT, getCurrentUser);
-
-router.get("/all", verifyJWT, getAllUsers);
-
-router.put("/update/:id", verifyJWT, updateUser);
-
+router.get("/:id", verifyJWT, getCurrentUser); // Mapping to same logic or specific getById
+router.patch("/:id", verifyJWT, updateUser);
 router.patch("/deactivate/:id", verifyJWT, deactivateUser);
-
 router.post("/logout", verifyJWT, logoutUser);
-
 router.post("/change-password", verifyJWT, changeUserPassword);
+router.post("/switch-role", verifyJWT, switchRole);
 
 export default router;

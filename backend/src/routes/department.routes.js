@@ -16,8 +16,8 @@ router.use(verifyJWT);
 //Routes
 router.route("/").get(getDepartments).post(addDepartment);
 
-router.route("/:deptCode").get(getDepartmentById).patch(updateDepartment);
+router.route("/:id").get(getDepartmentById).patch(updateDepartment);
 
-router.route("/:deptCode/toggle-status").patch(toggleDepartmentStatus); // For Change Status
+router.route("/:id/toggle-status").patch(toggleDepartmentStatus); // For Change Status
 
 export default router;

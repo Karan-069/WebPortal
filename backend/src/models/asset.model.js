@@ -70,16 +70,6 @@ const assetSchema = new Schema(
     barcode: {
       type: String, // Base64 barcode
     },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    updatedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
     isActive: {
       type: Boolean,
       default: true,
@@ -87,30 +77,37 @@ const assetSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
+import { auditPlugin } from "../utils/auditPlugin.js";
+assetSchema.plugin(auditPlugin);
 assetSchema.plugin(mongoosePaginate);
 
-pre("save", async function (next) {
+assetSchema.pre("save", async function (next) {
   if (this.isNew) {
     try {
+      // NextTransactionId is on the same connection — use this.constructor.db
+      const NextTransactionId = this.db.model("NextTransactionId");
       const nextAssetId = await NextTransactionId.findOneAndUpdate(
         { menuId: "asset" },
         { $inc: { sequenceValue: 1 } },
-        { new: true, upsert: true } // Create if it doesn't exist
+        { new: true, upsert: true },
       );
 
       const prefix = nextAssetId.prefix || "AS";
       this.assetId = `${prefix}-${String(nextAssetId.sequenceValue).padStart(
         3,
-        "0"
+        "0",
       )}`;
       next();
     } catch (error) {
-      next(error); // Pass error to next middleware
+      next(error);
     }
+  } else {
+    next();
   }
 });
 
 export const Asset = mongoose.model("Asset", assetSchema);
+export { assetSchema };

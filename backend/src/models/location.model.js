@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
 
 const locationSchema = new Schema(
   {
@@ -44,9 +45,13 @@ const locationSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
+import { auditPlugin } from "../utils/auditPlugin.js";
+locationSchema.plugin(auditPlugin);
 locationSchema.plugin(mongoosePaginate);
+locationSchema.plugin(autoCodePlugin, { moduleName: "location" });
 
 export const Location = mongoose.model("Location", locationSchema);
+export { locationSchema };

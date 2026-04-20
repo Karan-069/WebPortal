@@ -23,7 +23,7 @@ const toggleStatus = async (model, id) => {
     const updatedRecord = await model.findByIdAndUpdate(
       id,
       { isActive: updatedStatus },
-      { new: true }
+      { new: true },
     );
 
     // Return success message based on updated status
@@ -36,7 +36,7 @@ const toggleStatus = async (model, id) => {
   } catch (error) {
     throw new ApiError(
       500,
-      error?.message || "An error occurred while toggling the status."
+      error?.message || "An error occurred while toggling the status.",
     );
   }
 };

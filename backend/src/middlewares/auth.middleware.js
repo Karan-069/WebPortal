@@ -7,12 +7,27 @@ import { refreshAccessTokenService } from "../services/auth.service.js";
 
 const verifyJWT = asyncHandler(async (req, res, next) => {
   // Token from cookies or Authorization header
+  // VERBOSE LOGGING FOR DIAGNOSTICS
+  console.log(`[AuthMW] Request: ${req.method} ${req.originalUrl}`);
+
+  // Explicitly bypass verification for public auth routes
+  const publicPaths = ["/api/v1/users/login", "/api/v1/users/refresh-token"];
+  const isPublic = publicPaths.some((path) => req.originalUrl === path);
+
+  if (isPublic) {
+    console.log(`[AuthMW] Bypassing auth for public route: ${req.originalUrl}`);
+    return next();
+  }
   const accessToken =
     req.cookies?.accessToken ||
     req.header("Authorization")?.replace("Bearer ", "");
-
+  console.log("Cookies:", req.cookies);
+  console.log("Authorization:", req.header("Authorization"));
   if (!accessToken) {
-    throw new ApiError(401, "Unauthorized Request");
+    throw new ApiError(
+      401,
+      `Unauthorized Request to ${req.originalUrl} token not provided`,
+    );
   }
 
   // Detect external API
@@ -30,6 +45,13 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
 
     req.user = user;
 
+    // Inject User ID into Scoped Context for Audit Tracking
+    const { tenantStorage } = await import("../utils/tenantContext.js");
+    const store = tenantStorage.getStore();
+    if (store) {
+      store.userId = user._id;
+    }
+
     return next();
   } catch (error) {
     // If external API → do not refresh
@@ -46,6 +68,13 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
     const refreshToken = req.cookies?.refreshToken;
 
     if (!refreshToken) {
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Strict",
+      };
+      res.clearCookie("accessToken", cookieOptions);
+      res.clearCookie("refreshToken", cookieOptions);
       throw new ApiError(401, "Session Expired, Please Login Again");
     }
 
@@ -55,7 +84,7 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
     // Set new cookies
     const cookieOptions = {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
     };
 

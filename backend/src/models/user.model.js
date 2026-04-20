@@ -21,15 +21,37 @@ const UserSchema = new Schema(
       type: String,
       required: true,
     },
-    userRole: {
+    userRoles: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "UserRole",
+        required: [true, "At least one User Role is Mandatory!!"],
+      },
+    ],
+    workflowRoles: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "WorkflowRole",
+        required: [true, "At least one Workflow Role is Mandatory!!"],
+      },
+    ],
+    roleAssignments: [
+      {
+        userRole: { type: Schema.Types.ObjectId, ref: "UserRole" },
+        workflowRole: { type: Schema.Types.ObjectId, ref: "WorkflowRole" },
+      },
+    ],
+    defaultRoleAssignment: {
+      userRole: { type: Schema.Types.ObjectId, ref: "UserRole" },
+      workflowRole: { type: Schema.Types.ObjectId, ref: "WorkflowRole" },
+    },
+    activeRole: {
       type: Schema.Types.ObjectId,
       ref: "UserRole",
-      required: [true, "User Role is Mandatory!!"],
     },
-    workflowRole: {
+    activeWorkflowRole: {
       type: Schema.Types.ObjectId,
       ref: "WorkflowRole",
-      required: [true, "Workflow Role is Mandatory!!"],
     },
     refreshToken: {
       type: String,
@@ -70,8 +92,8 @@ UserSchema.methods.generateAccessToken = function () {
       _id: this._id,
       email: this.email,
       fullName: this.fullName,
-      userRole: this.userRole,
-      workflowRole: this.workflowRole,
+      userRole: this.activeRole,
+      workflowRole: this.activeWorkflowRole,
       accessType: this.accessType,
     },
     process.env.JWT_ACCESS_SECRET_KEY,
@@ -94,6 +116,9 @@ UserSchema.methods.generateRefreshToken = function () {
   );
 };
 
+import { auditPlugin } from "../utils/auditPlugin.js";
+UserSchema.plugin(auditPlugin);
 UserSchema.plugin(mongoosePaginate);
 
 export const User = mongoose.model("User", UserSchema);
+export { UserSchema };

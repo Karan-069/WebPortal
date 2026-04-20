@@ -3,10 +3,25 @@ import mongoosePaginate from "mongoose-paginate-v2";
 
 const workflowLogSchema = new Schema(
   {
+    transactionModel: {
+      type: String,
+      required: true,
+      enum: [
+        "Bill",
+        "Vendor",
+        "Location",
+        "Item",
+        "Department",
+        "Subsidary",
+        "User",
+        "City",
+        "State",
+      ],
+    },
     transactionId: {
       type: Schema.Types.ObjectId,
-      ref: "Bill",
       required: true,
+      refPath: "transactionModel",
       index: true,
     },
     workflowId: {
@@ -20,7 +35,15 @@ const workflowLogSchema = new Schema(
     },
     StageStatus: {
       type: String,
-      enum: ["submit", "approve", "reject", "delegate"],
+      enum: [
+        "submit",
+        "approve",
+        "reject",
+        "delegate",
+        "clarification_requested",
+        "clarification_provided",
+        "auto_notify",
+      ],
     },
     userId: {
       type: Schema.Types.ObjectId,
@@ -37,9 +60,10 @@ const workflowLogSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 workflowLogSchema.plugin(mongoosePaginate);
 
 export const WorkflowLog = mongoose.model("WorkflowLog", workflowLogSchema);
+export { workflowLogSchema };

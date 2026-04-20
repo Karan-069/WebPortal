@@ -1,6 +1,8 @@
 import mongoose, { Schema } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
 import { ApiError } from "../utils/ApiError.js";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
+import { auditPlugin } from "../utils/auditPlugin.js";
 
 const userRoleSchema = new Schema(
   {
@@ -38,17 +40,17 @@ const userRoleSchema = new Schema(
   },
 );
 
+userRoleSchema.plugin(auditPlugin);
 userRoleSchema.plugin(mongoosePaginate);
+userRoleSchema.plugin(autoCodePlugin, { moduleName: "userRole" });
 
 userRoleSchema.methods.PopulateMenus = async function () {
   try {
-    await this.populate({
-      path: "menus.menuId",
-      select: "menuId sortOrder parentMenu icon description",
-    });
+    await this.populate({ path: "menus.menuId", select: "menuId description" });
   } catch (error) {
     throw new ApiError(500, error?.message || "Error while Populating MenuIds");
   }
 };
 
 export const UserRole = mongoose.model("UserRole", userRoleSchema);
+export { userRoleSchema };

@@ -1,5 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
+import { auditPlugin } from "../utils/auditPlugin.js";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
 
 const assetCategorySchema = new Schema(
   {
@@ -22,12 +24,15 @@ const assetCategorySchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 assetCategorySchema.plugin(mongoosePaginate);
+assetCategorySchema.plugin(auditPlugin);
+assetCategorySchema.plugin(autoCodePlugin, { moduleName: "assetCategory" });
 
 export const AssetCategory = mongoose.model(
   "AssetCategory",
-  assetCategorySchema
+  assetCategorySchema,
 );
+export { assetCategorySchema };

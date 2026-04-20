@@ -1,6 +1,8 @@
 import mongoose, { Schema } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
 import { ApiError } from "../utils/ApiError.js";
+import { auditPlugin } from "../utils/auditPlugin.js";
 
 const subsidarySchema = new Schema(
   {
@@ -39,10 +41,12 @@ const subsidarySchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 subsidarySchema.plugin(mongoosePaginate);
+subsidarySchema.plugin(auditPlugin);
+subsidarySchema.plugin(autoCodePlugin, { moduleName: "subsidary" });
 
 // Options to include virtuals when converting to JSON
 subsidarySchema.set("toJSON", { virtuals: true });
@@ -62,17 +66,18 @@ subsidarySchema.virtual("fullAddress").get(function () {
 subsidarySchema.methods.PopulateCityAndState = async function () {
   try {
     await this.populate([
-      { path: "city", select: "description" },
-      { path: "state", select: "description" },
+      { path: "city", select: "cityCode description" },
+      { path: "state", select: "stateCode description" },
     ]);
 
     return this.fullAddress;
   } catch (error) {
     throw new ApiError(
       500,
-      error?.message || "Error while Populating fullAddress Data!!"
+      error?.message || "Error while Populating fullAddress Data!!",
     );
   }
 };
 
 export const Subsidary = mongoose.model("Subsidary", subsidarySchema);
+export { subsidarySchema };

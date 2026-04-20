@@ -11,7 +11,6 @@ const appMenuSchema = new Schema(
     },
     description: {
       type: String,
-      unique: true,
       required: [true, "Description is Mandatory"],
     },
     parentMenu: {
@@ -25,6 +24,15 @@ const appMenuSchema = new Schema(
     icon: {
       type: String,
     },
+    menuLevel: {
+      type: Number,
+      default: 0, // 0 = root, 1 = first sub-level, 2 = second sub-level
+    },
+    menuType: {
+      type: String,
+      enum: ["folder", "page"],
+      default: "page", // 'folder' = parent container, 'page' = navigable
+    },
     permissions: {
       type: [String],
       enum: ["add", "edit", "submit", "approve", "view", "all"],
@@ -37,9 +45,10 @@ const appMenuSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 appMenuSchema.plugin(mongoosePaginate);
 
 export const AppMenu = mongoose.model("AppMenu", appMenuSchema);
+export { appMenuSchema };

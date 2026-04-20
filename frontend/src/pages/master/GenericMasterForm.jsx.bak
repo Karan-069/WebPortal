@@ -1,0 +1,261 @@
+import React, { useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useDispatch } from 'react-redux';
+import { setPageContext } from '../../store/features/uiSlice';
+import api from '../../services/api';
+import { masterModules } from '../../config/moduleConfig';
+import toast from 'react-hot-toast';
+import { Loader2 } from 'lucide-react';
+
+// ─── State Select Field ──────────────────────────────────────────────────────
+function StateSelectField({ control, name, errors, disabled }) {
+  const { data: states = [], isLoading } = useQuery({
+    queryKey: ['states-dropdown'],
+    queryFn: async () => {
+      const res = await api.get('/states');
+      return res.data?.data || [];
+    }
+  });
+
+  return (
+    <Controller
+      name={name}
+      control={control}
+      render={({ field }) => (
+        <select
+          id={`field-${name}`}
+          {...field}
+          disabled={disabled || isLoading}
+          className={`px-3 py-2 text-sm border rounded-md focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all w-full ${disabled
+            ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200'
+            : 'bg-slate-50/30 hover:bg-slate-50/80 focus:bg-white text-slate-900 border-slate-200/80'
+            } ${errors[name] ? 'border-red-400' : ''}`}
+        >
+          <option value="">
+            {isLoading ? 'Loading states...' : '— Select State —'}
+          </option>
+          {states
+            .filter((s) => s.isActive)
+            .map((s) => (
+              <option key={s._id} value={s._id}>
+                {s.description} ({s.stateCode})
+              </option>
+            ))}
+        </select>
+      )}
+    />
+  );
+}
+
+// ─── Main Form ───────────────────────────────────────────────────────────────
+export default function GenericMasterForm() {
+  const { module, id } = useParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const queryClient = useQueryClient();
+  const isEditMode = id !== 'new';
+
+  const config = masterModules[module];
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    control,
+    formState: { errors, isDirty }
+  } = useForm({
+    resolver: config ? zodResolver(config.schema) : undefined,
+    defaultValues: { isActive: true }
+  });
+
+  // ── Fetch existing record for edit mode ──
+  const { data: initialData, isLoading: isFetching } = useQuery({
+    queryKey: ['/api/v1/', module, id],
+    queryFn: async () => {
+      const res = await api.get(`${config.endpoint}/${id}`);
+      const record = res.data?.data || res.data;
+      // For cities, backend returns stateCode as populated object — extract _id for the form
+      if (module === 'cities' && record?.stateCode?._id) {
+        return { ...record, stateCode: record.stateCode._id };
+      }
+      return record;
+    },
+    enabled: isEditMode && !!config,
+  });
+
+  useEffect(() => {
+    if (initialData) reset(initialData);
+  }, [initialData, reset]);
+
+  // ── Create / Update mutation ──
+  const mutation = useMutation({
+    mutationFn: (data) => {
+      if (isEditMode) {
+        // Remove idField from PATCH body (backend ignores it but keeps it clean)
+        const { [config.idField]: _omit, ...patchData } = data;
+        return api.patch(`${config.endpoint}/${id}`, patchData);
+      }
+      return api.post(config.endpoint, data);
+    },
+    onSuccess: () => {
+      toast.success(`${config.title} ${isEditMode ? 'updated' : 'created'} successfully!`);
+      queryClient.invalidateQueries(['master', module]);
+      navigate(`/api/v1/${module}`);
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.message || err.message || 'An error occurred');
+    }
+  });
+
+  const onCancel = () => {
+    if (isDirty) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to discard them?')) {
+        navigate(`/api/v1/${module}`);
+      }
+    } else {
+      navigate(`/api/v1/${module}`);
+    }
+  };
+
+  const onSubmit = (data) => mutation.mutate(data);
+
+  // ── Page header actions ──
+  useEffect(() => {
+    if (config) {
+      dispatch(setPageContext({
+        title: `${isEditMode ? 'Edit' : 'Create'} ${config.title}`,
+        actions: [
+          {
+            label: 'Cancel',
+            variant: 'secondary',
+            onClick: onCancel
+          },
+          {
+            label: isEditMode ? 'Save Changes' : `Create ${config.title}`,
+            variant: 'primary',
+            onClick: handleSubmit(onSubmit)
+          }
+        ]
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, dispatch, isEditMode, navigate, handleSubmit]);
+
+  if (!config) return (
+    <div className="p-6 text-red-500 bg-red-50 rounded-xl border border-red-100">
+      Module not found: <strong>{module}</strong>
+    </div>
+  );
+
+  if (isEditMode && isFetching) return (
+    <div className="flex items-center gap-3 p-8 text-slate-400">
+      <Loader2 className="w-5 h-5 animate-spin" />
+      Loading record...
+    </div>
+  );
+
+  return (
+    <div className="max-w-4xl bg-white p-8 rounded-xl shadow-sm border border-slate-200">
+      <h2 className="text-base font-semibold text-slate-900 mb-6 pb-4 border-b border-slate-100">
+        {config.title} Information
+      </h2>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+        {config.fields.map((field) => {
+          const isDisabled =
+            (isEditMode && field.disabledOnEdit) ||
+            (!isEditMode && field.disabledOnCreate);
+
+          return (
+            <div key={field.name} className="flex flex-col">
+              <label
+                htmlFor={`field-${field.name}`}
+                className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2"
+              >
+                {field.label}
+                {field.name !== 'isActive' && !field.disabledOnEdit && (
+                  <span className="text-red-400 ml-0.5"> </span>
+                )}
+              </label>
+
+              {/* ── Checkbox ── */}
+              {field.type === 'checkbox' && (
+                <div className="flex items-center h-10 gap-2">
+                  <input
+                    id={`field-${field.name}`}
+                    type="checkbox"
+                    disabled={isDisabled}
+                    {...register(field.name)}
+                    className="w-4 h-4 text-sky-600 bg-slate-100 border-slate-300 rounded focus:ring-sky-500 disabled:opacity-50"
+                  />
+                  <span className="text-sm text-slate-600">
+                    {isEditMode
+                      ? 'Use the Activate/Deactivate action in the list to toggle status'
+                      : 'Active by default on creation'}
+                  </span>
+                </div>
+              )}
+
+              {/* ── State dropdown (cities only) ── */}
+              {field.type === 'stateSelect' && (
+                <StateSelectField
+                  control={control}
+                  name={field.name}
+                  errors={errors}
+                  disabled={isDisabled}
+                />
+              )}
+
+              {/* ── Regular text input ── */}
+              {field.type !== 'checkbox' && field.type !== 'stateSelect' && (
+                <input
+                  id={`field-${field.name}`}
+                  type={field.type}
+                  disabled={isDisabled}
+                  {...register(field.name)}
+                  className={`px-3 py-2 text-sm border rounded-md focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all ${isDisabled
+                    ? 'bg-slate-100 text-slate-500 cursor-not-allowed border-slate-200'
+                    : 'bg-slate-50/30 hover:bg-slate-50/80 focus:bg-white text-slate-900 border-slate-200/80'
+                    } ${errors[field.name] ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20' : ''}`}
+                  placeholder={`Enter ${field.label.toLowerCase()}...`}
+                />
+              )}
+
+              {/* ── Validation error ── */}
+              {errors[field.name] && (
+                <span className="text-xs text-red-500 mt-1 font-medium">
+                  {errors[field.name].message}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </form>
+
+      {/* ── Bottom submit bar ── */}
+      <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-slate-100">
+        <button
+          id="form-cancel"
+          type="button"
+          onClick={onCancel}
+          className="px-5 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          id="form-submit"
+          type="button"
+          disabled={mutation.isPending}
+          onClick={handleSubmit(onSubmit)}
+          className="px-5 py-2 text-sm font-semibold text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-60 rounded-lg transition-colors flex items-center gap-2"
+        >
+          {mutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+          {isEditMode ? 'Save Changes' : `Create ${config.title}`}
+        </button>
+      </div>
+    </div>
+  );
+}

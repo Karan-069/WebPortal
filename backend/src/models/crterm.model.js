@@ -1,5 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
+import { auditPlugin } from "../utils/auditPlugin.js";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
 
 const crtermSchema = new Schema(
   {
@@ -22,9 +24,12 @@ const crtermSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 crtermSchema.plugin(mongoosePaginate);
+crtermSchema.plugin(auditPlugin);
+crtermSchema.plugin(autoCodePlugin, { moduleName: "crterm" });
 
 export const Crterm = mongoose.model("Crterm", crtermSchema);
+export { crtermSchema };

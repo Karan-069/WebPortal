@@ -1,14 +1,12 @@
 import mongoose, { Schema } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
+import { auditPlugin } from "../utils/auditPlugin.js";
 
 // Workflow Stage Schema
 const workflowStageSchema = new Schema(
   {
-    workflowId: {
-      type: Schema.Types.ObjectId,
-      ref: "Workflow",
-      required: true,
-    },
+    // NOTE: workflowId removed — it's redundant inside an embedded subdocument array
     stageNumber: {
       type: Number,
       required: true,
@@ -16,47 +14,75 @@ const workflowStageSchema = new Schema(
     stageName: {
       type: String,
       required: true,
-      unique: true,
     },
     stageApproverRole: {
       type: Schema.Types.ObjectId,
       ref: "WorkflowRole",
-      required: true,
     },
+    isStatic: {
+      type: Boolean,
+      default: false,
+    },
+    specificApprover: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    isNotificationOnly: {
+      type: Boolean,
+      default: false,
+    },
+    // Email recipients defined at the stage level
+    notificationRecipients: [
+      {
+        email: { type: String, trim: true, lowercase: true },
+        type: { type: String, enum: ["to", "cc", "bcc"], default: "to" },
+      },
+    ],
     minAmount: {
       type: mongoose.Types.Decimal128,
-      required: true,
-      min: [0, "minAmount must be a positive number"],
+      default: 0,
     },
     maxAmount: {
       type: mongoose.Types.Decimal128,
-      required: true,
-      min: [0, "maxAmount must be a positive number"],
+      default: 0,
     },
+    mandatoryFields: [
+      {
+        fieldName: { type: String, required: true },
+        roleId: { type: Schema.Types.ObjectId, ref: "WorkflowRole" }, // Optional: only mandatory for this role
+      },
+    ],
   },
   {
     timestamps: true,
-  }
+  },
 );
-
-// Pre-save validation for amount fields
-workflowStageSchema.pre("save", function (next) {
-  if (this.minAmount >= this.maxAmount) {
-    return next(new Error("minAmount must be less than maxAmount"));
-  }
-  next();
-});
-
-// Unique index for stage names within a workflow
-workflowStageSchema.index({ workflowId: 1, stageName: 1 }, { unique: true });
 
 // Workflow Schema
 const workflowSchema = new Schema(
   {
+    workflowCode: {
+      type: String,
+      unique: true,
+      index: true,
+    },
     description: {
       type: String,
       required: [true, "Description is Mandatory!!"],
       unique: true,
+    },
+    workflowType: {
+      type: String,
+      enum: ["transaction", "master"],
+      default: "transaction",
+    },
+    transactionType: {
+      type: String,
+      required: [true, "Transaction Type is Mandatory!!"],
+      trim: true,
+    },
+    moduleContext: {
+      type: Schema.Types.Mixed, // E.g., ObjectId for department/subsidiary, or String enum
     },
     initiatorRole: {
       type: Schema.Types.ObjectId,
@@ -71,8 +97,11 @@ const workflowSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
+
+// Unique index for stage names within a workflow
+workflowSchema.index({ "WorkflowStage.stageNumber": 1 });
 
 workflowSchema.methods.populateDetails = async function () {
   return await this.populate({
@@ -80,18 +109,14 @@ workflowSchema.methods.populateDetails = async function () {
     select: "roleName permissions",
   })
     .populate({
-      path: "workflowStages.stageApproverRole",
+      path: "WorkflowStage.stageApproverRole",
     })
     .lean();
 };
 
+workflowSchema.plugin(auditPlugin);
 workflowSchema.plugin(mongoosePaginate);
+workflowSchema.plugin(autoCodePlugin, { moduleName: "workflow" });
 
-//Models
-const WorkflowStage = mongoose.model("WorkflowStage", workflowStageSchema);
-const Workflow = mongoose.model("Workflow", workflowSchema);
-
-module.exports = {
-  WorkflowStage,
-  Workflow,
-};
+export const Workflow = mongoose.model("Workflow", workflowSchema);
+export { workflowSchema };

@@ -1,5 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import mongoosePaginate from "mongoose-paginate-v2";
+import { auditPlugin } from "../utils/auditPlugin.js";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
 
 const departmentSchema = new Schema(
   {
@@ -25,9 +27,12 @@ const departmentSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 departmentSchema.plugin(mongoosePaginate);
+departmentSchema.plugin(auditPlugin);
+departmentSchema.plugin(autoCodePlugin, { moduleName: "department" });
 
 export const Department = mongoose.model("Department", departmentSchema);
+export { departmentSchema };
