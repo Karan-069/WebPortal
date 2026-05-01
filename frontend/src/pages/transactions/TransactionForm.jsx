@@ -70,15 +70,17 @@ export default function TransactionForm() {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200/60 p-8 max-w-5xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 border-b border-slate-100 pb-4">
-        <h2 className="text-lg font-semibold text-slate-900 tracking-tight">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 bg-slate-100/50 border-b border-slate-200/60 p-4 -mx-8 -mt-8 rounded-t-xl relative">
+        {/* Accent Bar */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full" />
+        <h2 className="text-xs font-bold text-slate-900 uppercase tracking-widest px-3">
           Bill Details
         </h2>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-2">
             Invoice Number *
           </label>
           <input
@@ -91,7 +93,7 @@ export default function TransactionForm() {
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-2">
             Invoice Date
           </label>
           <input
@@ -103,7 +105,7 @@ export default function TransactionForm() {
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-2">
             Vendor *
           </label>
           <SearchableSelect
@@ -122,7 +124,7 @@ export default function TransactionForm() {
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-2">
             Department
           </label>
           <SearchableSelect
@@ -142,7 +144,7 @@ export default function TransactionForm() {
           />
         </div>
         <div className="col-span-1 md:col-span-2 lg:col-span-3">
-          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-2">
             Remarks
           </label>
           <textarea
@@ -156,8 +158,10 @@ export default function TransactionForm() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-10 mb-6 border-b border-slate-100 pb-4">
-        <h2 className="text-lg font-semibold text-slate-900 tracking-tight">
+      <div className="flex items-center justify-between mt-10 mb-6 bg-slate-100/50 border-b border-slate-200/60 p-4 -mx-8 relative">
+        {/* Accent Bar */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full" />
+        <h2 className="text-xs font-bold text-slate-900 uppercase tracking-widest px-3">
           Line Items
         </h2>
       </div>

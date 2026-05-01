@@ -12,10 +12,13 @@ import {
 import { useSelector, useDispatch } from "react-redux";
 import { setPageContext } from "../../store/features/uiSlice";
 import { useEffect } from "react";
+import Button from "../../components/ui/Button";
+import { cn } from "../../lib/utils";
 
 export default function VendorDashboard() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
 
   useEffect(() => {
     dispatch(
@@ -48,7 +51,7 @@ export default function VendorDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold uppercase tracking-wide">
+          <span className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-bold uppercase tracking-[0.15em] [word-spacing:0.1em]">
             Active Account
           </span>
         </div>
@@ -75,7 +78,7 @@ export default function VendorDashboard() {
                 )}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-[0.15em] [word-spacing:0.1em]">
                   {isDraft
                     ? "Action Required: Complete Profile"
                     : "Profile Status"}
@@ -104,18 +107,20 @@ export default function VendorDashboard() {
               </div>
             </div>
 
-            <button
+            <Button
               onClick={() => (isDraft ? navigate("/register/vendor") : null)}
               disabled={!isDraft}
-              className={`whitespace-nowrap px-4 py-2 text-sm rounded border font-medium shadow-sm transition-all flex items-center gap-2 ${
+              variant={isDraft ? "soft" : "outline"}
+              rightIcon={isDraft ? <ChevronRight className="w-4 h-4" /> : null}
+              className={cn(
+                "whitespace-nowrap px-4 font-bold shadow-none border-0",
                 isDraft
-                  ? "bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-700"
-                  : "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed"
-              }`}
+                  ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  : "bg-slate-50 text-slate-400",
+              )}
             >
               {isDraft ? "Complete Profile" : "Awaiting Approval"}
-              {isDraft && <ChevronRight className="w-4 h-4" />}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -125,7 +130,7 @@ export default function VendorDashboard() {
           onClick={() => navigate("/bills")}
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
               Total Bills
             </h3>
             <div className="p-2 bg-slate-50 border border-slate-100 text-indigo-600 rounded">
@@ -140,7 +145,7 @@ export default function VendorDashboard() {
           onClick={() => navigate("/bills?status=pending")}
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
               Pending
             </h3>
             <div className="p-2 bg-amber-50 border border-amber-100 text-amber-600 rounded">
@@ -157,7 +162,7 @@ export default function VendorDashboard() {
           onClick={() => navigate("/bills?status=approved")}
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
               Approved
             </h3>
             <div className="p-2 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded">
@@ -174,7 +179,7 @@ export default function VendorDashboard() {
           onClick={() => navigate("/bills")}
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+            <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
               Amount Paid
             </h3>
             <div className="p-2 bg-blue-50 border border-blue-100 text-blue-600 rounded">

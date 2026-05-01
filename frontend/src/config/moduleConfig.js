@@ -8,6 +8,7 @@ export const masterModules = {
     endpoint: "/departments",
     title: "Departments",
     idField: "deptCode", // used to build /:deptCode URLs
+    featureFlags: { workflow: "WF_DEPARTMENT", autoId: "AUTOID_DEPARTMENT" },
     columns: [
       { header: "Code", accessor: "deptCode" },
       { header: "Description", accessor: "description" },
@@ -52,6 +53,7 @@ export const masterModules = {
     endpoint: "/cities",
     title: "Cities",
     idField: "cityCode",
+    featureFlags: { workflow: "WF_CITY", autoId: "AUTOID_CITY" },
     columns: [
       { header: "Code", accessor: "cityCode" },
       { header: "Description", accessor: "description" },
@@ -92,6 +94,7 @@ export const masterModules = {
     endpoint: "/crterms",
     title: "Credit Terms",
     idField: "termCode",
+    featureFlags: { workflow: "WF_CRTERM", autoId: "AUTOID_CRTERM" },
     columns: [
       { header: "Code", accessor: "termCode" },
       { header: "Description", accessor: "description" },
@@ -125,6 +128,7 @@ export const masterModules = {
     endpoint: "/states",
     title: "States",
     idField: "stateCode",
+    featureFlags: { workflow: "WF_STATE", autoId: "AUTOID_STATE" },
     columns: [
       { header: "Code", accessor: "stateCode" },
       { header: "Description", accessor: "description" },
@@ -159,6 +163,7 @@ export const masterModules = {
     endpoint: "/uoms",
     title: "Units of Measure",
     idField: "uomCode",
+    featureFlags: { workflow: "WF_UOM", autoId: "AUTOID_UOM" },
     columns: [
       { header: "Code", accessor: "uomCode" },
       { header: "Description", accessor: "description" },
@@ -190,6 +195,7 @@ export const masterModules = {
     endpoint: "/subsidaries",
     title: "Subsidiaries",
     idField: "subsidaryCode",
+    featureFlags: { workflow: "WF_SUBSIDARY", autoId: "AUTOID_SUBSIDARY" },
     columns: [
       { header: "Code", accessor: "subsidaryCode" },
       { header: "Description", accessor: "description" },
@@ -221,6 +227,10 @@ export const masterModules = {
     endpoint: "/asset-categories",
     title: "Asset Categories",
     idField: "catCode",
+    featureFlags: {
+      workflow: "WF_ASSETCATEGORY",
+      autoId: "AUTOID_ASSETCATEGORY",
+    },
     columns: [
       { header: "Code", accessor: "catCode" },
       { header: "Description", accessor: "description" },
@@ -252,6 +262,7 @@ export const masterModules = {
     endpoint: "/vendors",
     title: "Vendors",
     idField: "vendorId",
+    featureFlags: { workflow: "WF_VENDOR", autoId: "AUTOID_VENDOR" },
     columns: [
       { header: "ID", accessor: "vendorId" },
       { header: "Full Name", accessor: "fullName" },
@@ -305,6 +316,7 @@ export const masterModules = {
     endpoint: "/line-of-businesses",
     title: "Lines of Business",
     idField: "lobCode",
+    featureFlags: { workflow: "WF_CLIENT", autoId: "AUTOID_CLIENT" },
     columns: [
       { header: "Code", accessor: "lobCode" },
       { header: "Description", accessor: "description" },
@@ -336,6 +348,7 @@ export const masterModules = {
     endpoint: "/chart-of-accounts",
     title: "Chart of Accounts",
     idField: "accountCode",
+    featureFlags: { workflow: "WF_ACCOUNT", autoId: "AUTOID_ACCOUNT" },
     columns: [
       { header: "Code", accessor: "accountCode" },
       { header: "Name", accessor: "accountName" },

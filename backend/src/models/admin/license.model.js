@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import { autoCodePlugin } from "../../utils/autoCodePlugin.js";
+import { auditPlugin } from "../../utils/auditPlugin.js";
 
 const licenseSchema = new Schema(
   {
@@ -19,10 +20,19 @@ const licenseSchema = new Schema(
       enum: ["free", "trial", "standard", "pro", "enterprise"],
       default: "standard",
     },
-    maxUsers: {
+    maxCoreUsers: {
       type: Number,
       required: true,
       default: 5,
+    },
+    maxVendorUsers: {
+      type: Number,
+      required: true,
+      default: 50,
+    },
+    maxUsers: {
+      type: Number,
+      default: 55, // Optional total cap
     },
     expiryDate: {
       type: Date,
@@ -39,5 +49,6 @@ const licenseSchema = new Schema(
   },
 );
 
+licenseSchema.plugin(auditPlugin);
 licenseSchema.plugin(autoCodePlugin, { moduleName: "license" });
 export const License = mongoose.model("License", licenseSchema);

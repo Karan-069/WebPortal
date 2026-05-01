@@ -1,32 +1,57 @@
-import { useModels } from "../utils/tenantContext.js";
+import { License } from "../models/admin/license.model.js";
 import { ApiError } from "../utils/ApiError.js";
 
-const getLicensesService = async (queryParams) => {
-  const { License } = useModels();
-  const { page = 1, limit = 10 } = queryParams;
+import mongoose from "mongoose";
 
-  // Global models usually use find comfortably, or we can use aggregate for better search
+const getLicensesService = async (queryParams) => {
+  const { page = 1, limit = 10 } = queryParams;
   const licenses = await License.find()
     .populate("clientId", "name slug")
     .sort({ createdAt: -1 });
-
-  return {
-    docs: licenses,
-    totalDocs: licenses.length,
-    totalPages: 1,
-  };
+  return { docs: licenses, totalDocs: licenses.length, totalPages: 1 };
 };
 
 const getLicenseByIdService = async (id) => {
-  const { License } = useModels();
-  const license = await License.findById(id).populate("clientId", "name slug");
+  const query = mongoose.Types.ObjectId.isValid(id)
+    ? { _id: id }
+    : { licenseCode: id };
+  const license = await License.findOne(query)
+    .populate("clientId", "name slug")
+    .populate("createdBy", "fullName email")
+    .populate("updatedBy", "fullName email");
   if (!license) throw new ApiError(404, "License not found");
   return license;
 };
 
 const createLicenseService = async (data) => {
-  const { License } = useModels();
   return await License.create(data);
 };
 
-export { getLicensesService, getLicenseByIdService, createLicenseService };
+const updateLicenseService = async (id, data) => {
+  const query = mongoose.Types.ObjectId.isValid(id)
+    ? { _id: id }
+    : { licenseCode: id };
+  const license = await License.findOneAndUpdate(query, data, { new: true })
+    .populate("clientId", "name slug")
+    .populate("createdBy", "fullName email")
+    .populate("updatedBy", "fullName email");
+  if (!license) throw new ApiError(404, "License not found for update");
+  return license;
+};
+
+const deleteLicenseService = async (id) => {
+  const query = mongoose.Types.ObjectId.isValid(id)
+    ? { _id: id }
+    : { licenseCode: id };
+  const license = await License.findOneAndDelete(query);
+  if (!license) throw new ApiError(404, "License not found for deletion");
+  return license;
+};
+
+export {
+  getLicensesService,
+  getLicenseByIdService,
+  createLicenseService,
+  updateLicenseService,
+  deleteLicenseService,
+};

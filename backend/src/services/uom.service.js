@@ -8,24 +8,36 @@ const getUomsService = async (query) => {
   const {
     page: requestedPage = 1,
     limit: requestedLimit = 50,
+    search = "",
     sortBy,
     sortOrder,
   } = query;
   const pageNum = parseInt(requestedPage) > 0 ? parseInt(requestedPage) : 1;
   const limitNum = parseInt(requestedLimit) > 0 ? parseInt(requestedLimit) : 50;
 
+  const filter = {};
+  if (search) {
+    filter.$or = [
+      { uomCode: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+    ];
+  }
+
   const sort = {};
   if (sortBy && sortOrder) {
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
+  } else {
+    sort.createdAt = -1;
   }
-  const uomData = await Uom.paginate(
-    {},
-    {
-      page: pageNum,
-      limit: limitNum,
-      sort: sort,
-    },
-  );
+  const uomData = await Uom.paginate(filter, {
+    page: pageNum,
+    limit: limitNum,
+    sort: sort,
+    populate: [
+      { path: "createdBy", select: "fullName" },
+      { path: "updatedBy", select: "fullName" },
+    ],
+  });
 
   if (!uomData) {
     throw new ApiError(500, "An Error Occured while Fetching UOMs!!");

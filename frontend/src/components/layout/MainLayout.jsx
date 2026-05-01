@@ -1,10 +1,18 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Outlet } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { refreshProfile } from "../../store/features/authSlice";
 import Sidebar from "./Sidebar";
 import DynamicHeader from "./DynamicHeader";
 import LoadingOverlay from "../ui/LoadingOverlay";
 
 export default function MainLayout() {
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    dispatch(refreshProfile());
+  }, [dispatch]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 font-sans">
       <LoadingOverlay />

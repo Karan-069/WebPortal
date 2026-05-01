@@ -9,6 +9,12 @@ const appMenuSchema = new Schema(
       trim: true,
       unique: true,
     },
+    slug: {
+      type: String,
+      trim: true,
+      description:
+        "The URL segment associated with this menu (e.g. 'items' for /api/v1/items)",
+    },
     description: {
       type: String,
       required: [true, "Description is Mandatory"],
@@ -35,8 +41,20 @@ const appMenuSchema = new Schema(
     },
     permissions: {
       type: [String],
-      enum: ["add", "edit", "submit", "approve", "view", "all"],
+      enum: ["add", "edit", "submit", "approve", "view", "delete", "all"],
       required: true,
+    },
+    isLookup: {
+      type: Boolean,
+      default: false,
+      description:
+        "If true, this menu's data can be viewed (read-only) by any authenticated user for lookup/dropdown purposes.",
+    },
+    scope: {
+      type: String,
+      enum: ["admin", "tenant"],
+      default: "tenant",
+      index: true,
     },
     isActive: {
       type: Boolean,

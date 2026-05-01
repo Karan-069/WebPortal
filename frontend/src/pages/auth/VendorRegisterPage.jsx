@@ -12,6 +12,7 @@ import {
 import toast from "react-hot-toast";
 import api from "../../services/api";
 import { loginSuccess } from "../../store/features/authSlice";
+import Button from "../../components/ui/Button";
 
 export default function VendorRegisterPage() {
   const [searchParams] = useSearchParams();
@@ -146,11 +147,11 @@ export default function VendorRegisterPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       <div className="absolute inset-0 bg-grid-slate-100/[0.04] bg-[size:20px_20px]" />
       <div className="absolute bottom-0 left-0 right-0 top-0 bg-[radial-gradient(circle_800px_at_100%_200px,#e0e7ff,transparent)]" />
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+      <div className="mx-auto w-full max-w-md relative z-10">
         <div className="flex justify-center">
           <div className="w-12 h-12 bg-indigo-600 rounded-xl shadow-lg flex items-center justify-center text-white">
             <Briefcase className="w-6 h-6" />
@@ -167,8 +168,8 @@ export default function VendorRegisterPage() {
         )}
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 transition-all">
-        <div className="bg-white/80 backdrop-blur-xl py-8 px-4 shadow-2xl sm:rounded-2xl sm:px-10 border border-white">
+      <div className="mt-8 mx-auto w-full max-w-md relative z-10 transition-all">
+        <div className="bg-white/80 backdrop-blur-xl py-8 px-6 shadow-2xl shadow-indigo-500/5 rounded-3xl sm:px-10 border border-white">
           <div className="flex items-center gap-2 mb-8">
             <div
               className={`flex-1 h-1.5 rounded-full ${step >= 1 ? "bg-indigo-600" : "bg-slate-200"} transition-all duration-500`}
@@ -193,7 +194,7 @@ export default function VendorRegisterPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
                   Email Linked to Invite
                 </label>
                 <div className="mt-1 relative rounded-lg shadow-sm">
@@ -210,7 +211,7 @@ export default function VendorRegisterPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
                   Company PAN Number
                 </label>
                 <div className="mt-1 relative rounded-lg shadow-sm">
@@ -230,13 +231,9 @@ export default function VendorRegisterPage() {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-md text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-75 transition-all"
-              >
-                {loading ? "Verifying..." : "Verify PAN & Continue"}
-              </button>
+              <Button type="submit" isLoading={loading} className="w-full">
+                Verify PAN & Continue
+              </Button>
             </form>
           )}
 
@@ -258,7 +255,7 @@ export default function VendorRegisterPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
                   Create Password
                 </label>
                 <div className="mt-1 relative rounded-lg shadow-sm">
@@ -277,7 +274,7 @@ export default function VendorRegisterPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
                   Confirm Password
                 </label>
                 <div className="mt-1 relative rounded-lg shadow-sm">
@@ -295,13 +292,13 @@ export default function VendorRegisterPage() {
                 </div>
               </div>
 
-              <button
+              <Button
                 type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-[0_0_15px_rgba(79,70,229,0.3)] text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-75 transition-all"
+                isLoading={loading}
+                className="w-full shadow-[0_0_15px_rgba(79,70,229,0.3)]"
               >
-                {loading ? "Creating Profile..." : "Complete Registration"}
-              </button>
+                Complete Registration
+              </Button>
             </form>
           )}
         </div>

@@ -1,6 +1,7 @@
 import React from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import Button from "./Button";
 
 /**
  * A reusable Right-Side Drawer component built on Radix Dialog.
@@ -43,9 +44,12 @@ export default function Drawer({
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
-              <button className="p-2 rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-100 text-slate-400 hover:text-slate-900 transition-all">
+              <Button
+                variant="ghost"
+                className="w-10 h-10 p-0 rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-slate-100 text-slate-400 hover:text-slate-900 shadow-none"
+              >
                 <X className="w-5 h-5" />
-              </button>
+              </Button>
             </Dialog.Close>
           </div>
 
@@ -57,9 +61,9 @@ export default function Drawer({
           {/* Footer */}
           <div className="p-6 border-t border-slate-100 bg-slate-50/30">
             <Dialog.Close asChild>
-              <button className="w-full h-11 inline-flex items-center justify-center rounded-xl text-sm font-bold border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-all shadow-sm">
+              <Button variant="outline" className="w-full h-11">
                 Close Panel
-              </button>
+              </Button>
             </Dialog.Close>
           </div>
         </Dialog.Content>

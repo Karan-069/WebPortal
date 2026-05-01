@@ -9,6 +9,7 @@ export default function SearchableSelect({
   options = [],
   placeholder = "Select an option...",
   searchPlaceholder = "Search...",
+  disabled = false,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -23,6 +24,7 @@ export default function SearchableSelect({
     <Popover.Root
       open={open}
       onOpenChange={(o) => {
+        if (disabled) return;
         setOpen(o);
         if (!o) setSearch("");
       }}
@@ -30,9 +32,14 @@ export default function SearchableSelect({
       <Popover.Trigger asChild>
         <button
           type="button"
+          disabled={disabled}
           role="combobox"
           aria-expanded={open}
-          className="flex items-center justify-between w-full px-3 py-2 text-sm border border-slate-200/80 rounded-md focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all bg-slate-50/30 hover:bg-slate-50/80 focus:bg-white text-slate-900"
+          className={`flex items-center justify-between w-full px-3 py-2 text-sm border border-slate-200/80 rounded-md focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none transition-all ${
+            disabled
+              ? "bg-slate-100 cursor-not-allowed opacity-70"
+              : "bg-slate-50/30 hover:bg-slate-50/80 focus:bg-white"
+          } text-slate-900`}
         >
           <span className="truncate">
             {selectedOption ? (
@@ -51,6 +58,8 @@ export default function SearchableSelect({
           className="z-50 w-[var(--radix-popover-trigger-width)] max-w-sm min-w-[200px] overflow-hidden bg-white border border-slate-200 rounded-md shadow-md animate-in fade-in zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=closed]:zoom-out-95"
         >
           <Command
+            value={value ? String(value) : ""}
+            onValueChange={() => {}}
             shouldFilter={false} // 👈 disable cmdk's built-in filtering
             className="flex flex-col w-full h-full overflow-hidden bg-white text-slate-900"
           >
@@ -78,8 +87,8 @@ export default function SearchableSelect({
                     option, // 👈 use filteredOptions
                   ) => (
                     <Command.Item
-                      key={option.value}
-                      value={option.value}
+                      key={String(option.value)}
+                      value={String(option.value)}
                       onSelect={() => {
                         onChange(option.value);
                         setOpen(false);

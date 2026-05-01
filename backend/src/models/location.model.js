@@ -26,6 +26,7 @@ const locationSchema = new Schema(
     },
     zipCode: {
       type: Number,
+      max: [999999, "Zip code cannot exceed 6 digits"],
     },
     city: {
       type: Schema.Types.ObjectId,

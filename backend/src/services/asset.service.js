@@ -22,6 +22,8 @@ const getAssetsService = async (queryParams) => {
       { path: "assetCategory", select: "description" },
       { path: "location", select: "description" },
       { path: "department", select: "description" },
+      { path: "createdBy", select: "fullName" },
+      { path: "updatedBy", select: "fullName" },
     ],
   });
 };
@@ -29,7 +31,7 @@ const getAssetsService = async (queryParams) => {
 const getAssetByIdService = async (id) => {
   const { Asset } = useModels();
   const asset = await Asset.findById(id).populate(
-    "assetCategory location department",
+    "assetCategory location department createdBy updatedBy",
   );
   if (!asset) throw new ApiError(404, "Asset not found");
   return asset;
@@ -45,7 +47,7 @@ const updateAssetService = async (id, data) => {
   const asset = await Asset.findByIdAndUpdate(id, data, {
     new: true,
     runValidators: true,
-  });
+  }).populate("createdBy updatedBy");
   if (!asset) throw new ApiError(404, "Asset not found");
   return asset;
 };

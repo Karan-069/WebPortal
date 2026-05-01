@@ -35,15 +35,29 @@ export const licenseCheck = asyncHandler(async (req, res, next) => {
     );
   }
 
-  // 3. Count existing users in the TENANT isolated database
-  const currentUserCount = await models.User.countDocuments();
+  // 3. Count existing users in the TENANT isolated database by type
+  const { accessType } = req.body;
+  const targetType = accessType || "user"; // Default to internal user if not specified
 
-  // 4. Enforce limit
-  if (currentUserCount >= license.maxUsers) {
-    throw new ApiError(
-      403,
-      `User limit reached (${license.maxUsers}). Please upgrade your license from the Master Settings to add more team members.`,
-    );
+  const currentUserCount = await models.User.countDocuments({
+    accessType: targetType,
+  });
+
+  // 4. Enforce granular limits
+  if (targetType === "user") {
+    if (currentUserCount >= license.maxCoreUsers) {
+      throw new ApiError(
+        403,
+        `Core User limit reached (${license.maxCoreUsers}). Please upgrade your license to add more team members.`,
+      );
+    }
+  } else if (targetType === "vendor") {
+    if (currentUserCount >= license.maxVendorUsers) {
+      throw new ApiError(
+        403,
+        `Vendor User limit reached (${license.maxVendorUsers}). Please upgrade your license to invite more vendor partners.`,
+      );
+    }
   }
 
   next();

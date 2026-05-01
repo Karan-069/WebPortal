@@ -9,17 +9,12 @@ import {
 } from "../services/workflowRole.service.js";
 
 const getWorkflowRole = asyncHandler(async (req, res) => {
-  const { data, pagination } = await getWorkflowRoleService(req.query);
+  const result = await getWorkflowRoleService(req.query);
 
   return res
     .status(200)
     .json(
-      new ApiResponse(
-        200,
-        data,
-        "Workflow Role Data fetched Successfully!!",
-        pagination,
-      ),
+      new ApiResponse(200, result, "Workflow Role Data fetched Successfully!!"),
     );
 });
 

@@ -48,8 +48,13 @@ export default function TransactionList() {
           ${row.billTotalAmount?.$numberDecimal || "0.00"}
         </span>
       ),
+      className: "text-right",
     },
-    { header: "Status", accessor: "transactionStatus" },
+    {
+      header: "Status",
+      accessor: "transactionStatus",
+      className: "hidden md:table-cell",
+    },
     {
       header: "Status",
       render: (row) => (

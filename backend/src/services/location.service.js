@@ -27,11 +27,17 @@ const getLocationsService = async (query) => {
     page: pageNum,
     limit: limitNum,
     sort,
-    populate: ["subsidary", "city", "state"],
+    populate: [
+      "subsidary",
+      "city",
+      "state",
+      { path: "createdBy", select: "fullName" },
+      { path: "updatedBy", select: "fullName" },
+    ],
   });
 
   const { docs, ...pagination } = locationData;
-  return { data: docs, pagination };
+  return { docs, ...pagination };
 };
 
 const getLocationByIdService = async (id) => {
@@ -41,6 +47,8 @@ const getLocationByIdService = async (id) => {
     "subsidary",
     "city",
     "state",
+    "createdBy",
+    "updatedBy",
   ]);
   if (!location) {
     throw new ApiError(404, "Location not found");
@@ -62,6 +70,8 @@ const addLocationService = async (body) => {
     "subsidary",
     "city",
     "state",
+    "createdBy",
+    "updatedBy",
   ]);
 };
 
@@ -76,7 +86,7 @@ const updateLocationService = async (id, body) => {
     existing._id,
     { $set: body },
     { new: true, runValidators: true },
-  ).populate(["subsidary", "city", "state"]);
+  ).populate(["subsidary", "city", "state", "createdBy", "updatedBy"]);
 
   return updated;
 };

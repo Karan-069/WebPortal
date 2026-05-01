@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { useModels } from "../utils/tenantContext.js";
 
 const getWorkflowLogsService = async (queryParams) => {
@@ -11,8 +12,20 @@ const getWorkflowLogsService = async (queryParams) => {
   } = queryParams;
 
   const query = {};
-  if (transactionId) query.transactionId = transactionId;
-  if (transactionModel) query.transactionModel = transactionModel;
+
+  if (transactionId) {
+    if (mongoose.isValidObjectId(transactionId)) {
+      query.transactionId = new mongoose.Types.ObjectId(transactionId);
+    } else {
+      query.transactionId = transactionId;
+    }
+  }
+
+  if (transactionModel) {
+    query.transactionModel = {
+      $regex: new RegExp(`^${transactionModel}$`, "i"),
+    };
+  }
 
   if (search) {
     query.$or = [

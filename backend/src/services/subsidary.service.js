@@ -9,34 +9,42 @@ const getSubsidariesService = async (query) => {
   const {
     page: requestedPage = 1,
     limit: requestedLimit = 50,
+    search = "",
     sortBy,
     sortOrder,
   } = query;
   const pageNum = parseInt(requestedPage) > 0 ? parseInt(requestedPage) : 1;
   const limitNum = parseInt(requestedLimit) > 0 ? parseInt(requestedLimit) : 50;
 
+  const filter = {};
+  if (search) {
+    filter.$or = [
+      { subCode: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+    ];
+  }
+
   const sort = {};
   if (sortBy && sortOrder) {
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
+  } else {
+    sort.createdAt = -1;
   }
 
-  const subsidaryData = await Subsidary.paginate(
-    {},
-    {
-      page: pageNum,
-      limit: limitNum,
-      sort: sort,
-    },
-  );
+  const subsidaryData = await Subsidary.paginate(filter, {
+    page: pageNum,
+    limit: limitNum,
+    sort: sort,
+    populate: [
+      { path: "city", select: "cityCode description" },
+      { path: "state", select: "stateCode description" },
+      { path: "createdBy", select: "fullName" },
+      { path: "updatedBy", select: "fullName" },
+    ],
+  });
 
   if (!subsidaryData) {
     throw new ApiError(500, "An Error Occured while fetching Data!!");
-  }
-
-  for (let record of subsidaryData.docs) {
-    if (record.PopulateCityAndState) {
-      await record.PopulateCityAndState();
-    }
   }
 
   const { docs, totalDocs, totalPages, page, limit } = subsidaryData;
@@ -50,13 +58,14 @@ const getSubsidaryByIdService = async (id) => {
   }
 
   const query = getLookupQuery(id, "subCode");
-  const isSubsidaryValid = await Subsidary.findOne(query);
+  const isSubsidaryValid = await Subsidary.findOne(query).populate([
+    { path: "city", select: "cityCode description" },
+    { path: "state", select: "stateCode description" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+  ]);
   if (!isSubsidaryValid) {
     throw new ApiError(404, "Invalid Subisdiary!!");
-  }
-
-  if (isSubsidaryValid.PopulateCityAndState) {
-    await isSubsidaryValid.PopulateCityAndState();
   }
 
   return isSubsidaryValid;
@@ -64,7 +73,8 @@ const getSubsidaryByIdService = async (id) => {
 
 const addSubsidaryService = async (body) => {
   const { Subsidary, City, State } = useModels();
-  const { subCode, description, address1, address2, city, state } = body;
+  const { subCode, description, address1, address2, zipCode, city, state } =
+    body;
 
   if (!subCode || !description || !city || !state) {
     throw new ApiError(
@@ -98,6 +108,7 @@ const addSubsidaryService = async (body) => {
     description,
     address1,
     address2,
+    zipCode,
     city,
     state,
   });
@@ -106,14 +117,12 @@ const addSubsidaryService = async (body) => {
     throw new ApiError(500, "An Error Occured while creating Document!!");
   }
 
-  if (newSubsidary) {
-    await newSubsidary.populate("createdBy updatedBy", "fullName");
-    if (newSubsidary.PopulateCityAndState) {
-      await newSubsidary.PopulateCityAndState();
-    }
-  }
-
-  return newSubsidary;
+  return await Subsidary.findById(newSubsidary._id).populate([
+    { path: "city", select: "cityCode description" },
+    { path: "state", select: "stateCode description" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+  ]);
 };
 
 const updateSubsidaryService = async (id, body) => {
@@ -150,14 +159,15 @@ const updateSubsidaryService = async (id, body) => {
     isSubsidaryValid._id,
     { $set: body },
     { new: true, runValidators: true },
-  ).populate("createdBy updatedBy", "fullName");
+  ).populate([
+    { path: "city", select: "cityCode description" },
+    { path: "state", select: "stateCode description" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+  ]);
 
   if (!updateSubsidaryData) {
     throw new ApiError(500, "An error Occured while updating Document!");
-  }
-
-  if (updateSubsidaryData.PopulateCityAndState) {
-    await updateSubsidaryData.PopulateCityAndState();
   }
 
   return updateSubsidaryData;

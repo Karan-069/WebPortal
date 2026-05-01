@@ -13,6 +13,7 @@ import {
 import api from "../../services/api";
 import { formatDistanceToNow } from "date-fns";
 import toast from "react-hot-toast";
+import Button from "../ui/Button";
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
@@ -83,7 +84,10 @@ export default function NotificationDropdown() {
   return (
     <Popover.Root open={isOpen} onOpenChange={onOpenChange}>
       <Popover.Trigger asChild>
-        <button className="relative p-2.5 text-slate-400 hover:text-slate-900 group transition-all outline-none rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100">
+        <Button
+          variant="ghost"
+          className="relative p-2.5 text-slate-400 hover:text-slate-900 group transition-all outline-none rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 shadow-none"
+        >
           <Bell
             className={`w-5 h-5 transition-transform group-hover:scale-110 ${data.unreadCount > 0 ? "animate-swing origin-top" : ""}`}
           />
@@ -92,7 +96,7 @@ export default function NotificationDropdown() {
               {data.unreadCount > 9 ? "9+" : data.unreadCount}
             </span>
           )}
-        </button>
+        </Button>
       </Popover.Trigger>
 
       <Popover.Portal>
@@ -103,21 +107,23 @@ export default function NotificationDropdown() {
         >
           <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <div className="flex flex-col">
-              <span className="text-sm font-bold text-slate-900">
+              <span className="text-sm font-bold text-slate-900 leading-tight">
                 Notifications
               </span>
-              <span className="text-[10px] text-slate-400 font-medium tracking-tight">
-                Recent activity updates
+              <span className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.1em] [word-spacing:0.05em] mt-0.5">
+                Recent Activity Updates
               </span>
             </div>
             {data.unreadCount > 0 && (
-              <button
+              <Button
+                variant="soft"
+                size="xs"
                 onClick={markAllAsRead}
-                className="flex items-center gap-1 text-[10px] font-black text-indigo-600 hover:text-indigo-700 bg-indigo-50 px-2 py-1 rounded-md uppercase tracking-widest transition-all"
+                leftIcon={<CheckCheck className="w-3 h-3" />}
+                className="text-[10px] font-black uppercase tracking-widest"
               >
-                <CheckCheck className="w-3 h-3" />
                 Clear All
-              </button>
+              </Button>
             )}
           </div>
 
@@ -162,7 +168,7 @@ export default function NotificationDropdown() {
                         {notif.message}
                       </p>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em]">
                           {formatDistanceToNow(new Date(notif.createdAt))} ago
                         </span>
                         {!notif.isRead && (
@@ -177,9 +183,13 @@ export default function NotificationDropdown() {
           </div>
 
           <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 text-center">
-            <button className="w-full text-[11px] font-black text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
+            <Button
+              variant="ghost"
+              fullWidth
+              className="text-[11px] font-bold text-slate-400 hover:text-slate-900 uppercase tracking-[0.15em] [word-spacing:0.1em] transition-all h-10"
+            >
               View Activity Center
-            </button>
+            </Button>
           </div>
         </Popover.Content>
       </Popover.Portal>

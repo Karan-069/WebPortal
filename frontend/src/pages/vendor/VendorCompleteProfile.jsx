@@ -12,6 +12,9 @@ import {
 import api from "../../services/api";
 import { useDispatch } from "react-redux";
 import { setPageContext } from "../../store/features/uiSlice";
+import Button from "../../components/ui/Button";
+import FormSection from "../../components/form/FormSection";
+import { Accordion } from "../../components/ui/Accordion";
 
 export default function VendorCompleteProfile() {
   const navigate = useNavigate();
@@ -105,8 +108,19 @@ export default function VendorCompleteProfile() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 animate-in fade-in duration-500">
+        <div className="relative">
+          <div className="w-12 h-12 border-4 border-slate-100 rounded-full" />
+          <div className="absolute inset-0 w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <p className="text-sm font-bold text-slate-900 tracking-tight">
+            Onboarding Context
+          </p>
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.15em] [word-spacing:0.1em]">
+            Loading Vendor Portal
+          </p>
+        </div>
       </div>
     );
   }
@@ -114,308 +128,278 @@ export default function VendorCompleteProfile() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
       <div className="flex items-center gap-4">
-        <button
+        <Button
+          variant="ghost"
           onClick={() => navigate(-1)}
-          className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500"
+          className="w-10 h-10 p-0 rounded-full text-slate-500 shadow-none border-0"
         >
           <ArrowLeft className="w-5 h-5" />
-        </button>
+        </Button>
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Complete Profile
           </h1>
-          <p className="text-sm text-slate-500 font-medium">
-            Please provide accurate details to finalize your vendor onboarding.
+          <p className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.15em] [word-spacing:0.1em] mt-1.5">
+            Finalize Vendor Onboarding Workflow
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Locked Profile Header */}
-        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200/60 shadow-inner">
-          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">
-            Locked Identity Details
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-500 mb-1">
-                Registered Company Name
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={formData.companyName}
-                className="w-full border border-slate-200 rounded-lg px-4 py-2 bg-slate-100 text-slate-500 cursor-not-allowed outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-500 mb-1">
-                Verified PAN Number
-              </label>
-              <input
-                type="text"
-                readOnly
-                value={formData.panNo}
-                className="w-full border border-slate-200 rounded-lg px-4 py-2 bg-slate-100 text-slate-500 font-mono uppercase cursor-not-allowed outline-none"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Tax Information */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-            <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600">
-              <Building2 className="w-5 h-5" />
-            </div>
-            <h2 className="text-lg font-bold text-slate-900">
-              Tax & Registration
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Registration Type
-              </label>
-              <select
-                name="registrationType"
-                value={formData.registrationType}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-lg px-4 py-2 bg-slate-50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-              >
-                <option value="regular">Regular</option>
-                <option value="compositeDealer">Composite Dealer</option>
-                <option value="unregistered">Unregistered</option>
-                <option value="overseas">Overseas</option>
-                <option value="sez">SEZ</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                GST Number
-              </label>
-              <input
-                required={formData.registrationType !== "unregistered"}
-                type="text"
-                name="gstNo"
-                value={formData.gstNo}
-                onChange={handleChange}
-                className="w-full border border-slate-200 font-mono rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none uppercase"
-                placeholder="22AAAAA0000A1Z5"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Address */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-            <div className="bg-sky-50 p-2 rounded-lg text-sky-600">
-              <MapPin className="w-5 h-5" />
-            </div>
-            <h2 className="text-lg font-bold text-slate-900">
-              Registered Address
-            </h2>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Address Line 1
-              </label>
-              <input
-                required
-                type="text"
-                name="address1"
-                value={formData.address1}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Address Line 2 (Optional)
-              </label>
-              <input
-                type="text"
-                name="address2"
-                value={formData.address2}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+        <Accordion
+          type="multiple"
+          defaultValue={["identity", "tax", "address", "banking", "cert"]}
+          className="space-y-6"
+        >
+          {/* Locked Profile Header */}
+          <FormSection
+            id="identity"
+            title="Locked Identity Details"
+            icon="ShieldCheck"
+            className="bg-slate-50/50"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  City
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  Registered Company Name
                 </label>
                 <input
-                  required
                   type="text"
-                  name="city"
-                  value={formData.city}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  State
-                </label>
-                <input
-                  required
-                  type="text"
-                  name="state"
-                  value={formData.state}
-                  onChange={handleChange}
-                  className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Country
-                </label>
-                <input
-                  required
                   readOnly
+                  value={formData.companyName}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2 bg-slate-100 text-slate-500 cursor-not-allowed outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  Verified PAN Number
+                </label>
+                <input
                   type="text"
-                  name="country"
-                  value={formData.country}
-                  className="w-full border border-slate-200 bg-slate-50 text-slate-500 rounded-lg px-4 py-2 outline-none"
+                  readOnly
+                  value={formData.panNo}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2 bg-slate-100 text-slate-500 font-mono uppercase cursor-not-allowed outline-none"
                 />
               </div>
             </div>
-          </div>
-        </div>
+          </FormSection>
 
-        {/* Banking */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-            <div className="bg-emerald-50 p-2 rounded-lg text-emerald-600">
-              <Landmark className="w-5 h-5" />
+          {/* Tax Information */}
+          <FormSection id="tax" title="Tax & Registration" icon="Building2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  Registration Type
+                </label>
+                <select
+                  name="registrationType"
+                  value={formData.registrationType}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2 bg-slate-50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                >
+                  <option value="regular">Regular</option>
+                  <option value="compositeDealer">Composite Dealer</option>
+                  <option value="unregistered">Unregistered</option>
+                  <option value="overseas">Overseas</option>
+                  <option value="sez">SEZ</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  GST Number
+                </label>
+                <input
+                  required={formData.registrationType !== "unregistered"}
+                  type="text"
+                  name="gstNo"
+                  value={formData.gstNo}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 font-mono rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none uppercase"
+                  placeholder="22AAAAA0000A1Z5"
+                />
+              </div>
             </div>
-            <h2 className="text-lg font-bold text-slate-900">Bank Details</h2>
-          </div>
+          </FormSection>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Bank Name
-              </label>
-              <input
-                required
-                type="text"
-                name="bankName"
-                value={formData.bankName}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                placeholder="HDFC Bank"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                IFSC Code
-              </label>
-              <input
-                required
-                type="text"
-                name="ifscCode"
-                value={formData.ifscCode}
-                onChange={handleChange}
-                className="w-full border border-slate-200 font-mono uppercase rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                placeholder="HDFC0001234"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Account Number
-              </label>
-              <input
-                required
-                type="text"
-                name="accountNumber"
-                value={formData.accountNumber}
-                onChange={handleChange}
-                className="w-full border border-slate-200 font-mono rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                placeholder="501234567890"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Beneficiary Name (As per Bank)
-              </label>
-              <input
-                required
-                type="text"
-                name="beneficiaryName"
-                value={formData.beneficiaryName}
-                onChange={handleChange}
-                className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                placeholder="Acme Logistics Private Limited"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* MSME & Cert */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-            <div className="bg-amber-50 p-2 rounded-lg text-amber-600">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <h2 className="text-lg font-bold text-slate-900">Certifications</h2>
-          </div>
-
-          <div className="space-y-4">
-            <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer w-max">
-              <input
-                type="checkbox"
-                name="isMsme"
-                checked={formData.isMsme}
-                onChange={handleChange}
-                className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600"
-              />
-              <span className="text-sm font-medium text-slate-700">
-                Registered as MSME
-              </span>
-            </label>
-
-            {formData.isMsme && (
-              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  MSME Registration Number
+          {/* Address */}
+          <FormSection id="address" title="Registered Address" icon="MapPin">
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  Address Line 1
                 </label>
                 <input
                   required
                   type="text"
-                  name="msmeNo"
-                  value={formData.msmeNo}
+                  name="address1"
+                  value={formData.address1}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  Address Line 2 (Optional)
+                </label>
+                <input
+                  type="text"
+                  name="address2"
+                  value={formData.address2}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                    City
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                    className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                    State
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    name="state"
+                    value={formData.state}
+                    onChange={handleChange}
+                    className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                    Country
+                  </label>
+                  <input
+                    required
+                    readOnly
+                    type="text"
+                    name="country"
+                    value={formData.country}
+                    className="w-full border border-slate-200 bg-slate-50 text-slate-500 rounded-lg px-4 py-2 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </FormSection>
+
+          {/* Banking */}
+          <FormSection id="banking" title="Bank Details" icon="Landmark">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  Bank Name
+                </label>
+                <input
+                  required
+                  type="text"
+                  name="bankName"
+                  value={formData.bankName}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  placeholder="HDFC Bank"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  IFSC Code
+                </label>
+                <input
+                  required
+                  type="text"
+                  name="ifscCode"
+                  value={formData.ifscCode}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 font-mono uppercase rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  placeholder="HDFC0001234"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  Account Number
+                </label>
+                <input
+                  required
+                  type="text"
+                  name="accountNumber"
+                  value={formData.accountNumber}
                   onChange={handleChange}
                   className="w-full border border-slate-200 font-mono rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                  placeholder="UDYAM-XX-00-00000"
+                  placeholder="501234567890"
                 />
               </div>
-            )}
-          </div>
-        </div>
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                  Beneficiary Name (As per Bank)
+                </label>
+                <input
+                  required
+                  type="text"
+                  name="beneficiaryName"
+                  value={formData.beneficiaryName}
+                  onChange={handleChange}
+                  className="w-full border border-slate-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                  placeholder="Acme Logistics Private Limited"
+                />
+              </div>
+            </div>
+          </FormSection>
 
+          {/* MSME & Cert */}
+          <FormSection id="cert" title="Certifications" icon="ShieldCheck">
+            <div className="space-y-4">
+              <label className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer w-max">
+                <input
+                  type="checkbox"
+                  name="isMsme"
+                  checked={formData.isMsme}
+                  onChange={handleChange}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-600"
+                />
+                <span className="text-sm font-medium text-slate-500">
+                  Registered as MSME
+                </span>
+              </label>
+
+              {formData.isMsme && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-1">
+                    MSME Registration Number
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    name="msmeNo"
+                    value={formData.msmeNo}
+                    onChange={handleChange}
+                    className="w-full border border-slate-200 font-mono rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
+                    placeholder="UDYAM-XX-00-00000"
+                  />
+                </div>
+              )}
+            </div>
+          </FormSection>
+        </Accordion>
         <div className="flex justify-end pt-4">
-          <button
+          <Button
             type="submit"
-            disabled={submitting}
-            className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-70 text-white font-medium px-8 py-3 rounded-xl shadow-[0_0_20px_rgba(79,70,229,0.25)] transition-all flex items-center justify-center gap-2"
+            isLoading={submitting}
+            leftIcon={<CheckCircle className="w-5 h-5" />}
+            className="px-8 shadow-[0_0_20px_rgba(79,70,229,0.25)]"
           >
-            {submitting ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            ) : (
-              <>
-                <CheckCircle className="w-5 h-5" />
-                Submit Profile
-              </>
-            )}
-          </button>
+            Submit Profile
+          </Button>
         </div>
       </form>
     </div>

@@ -26,16 +26,13 @@ const getCitiesService = async (query) => {
     {
       page: pageNum,
       limit: limitNum,
-      sort: sort,
-      populate: { path: "createdBy updatedBy", select: "fullName" },
+      populate: [
+        { path: "stateCode", select: "stateCode description" },
+        { path: "createdBy", select: "fullName" },
+        { path: "updatedBy", select: "fullName" },
+      ],
     },
   );
-
-  for (let city of getCitiesData.docs) {
-    if (city.PopulateState) {
-      await city.PopulateState();
-    }
-  }
 
   const { docs, totalDocs, totalPages, page, limit } = getCitiesData;
   return { docs, totalDocs, totalPages, page, limit };
@@ -46,16 +43,13 @@ const getCityByIdService = async (cityCode) => {
   if (!cityCode) {
     throw new ApiError(400, "Invalid City Code!!");
   }
-  const existingCity = await City.findOne({ cityCode }).populate(
-    "createdBy updatedBy",
-    "fullName",
-  );
+  const existingCity = await City.findOne({ cityCode }).populate([
+    { path: "stateCode", select: "stateCode description" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+  ]);
   if (!existingCity) {
     throw new ApiError(404, "City Not Found!!");
-  }
-
-  if (existingCity.PopulateState) {
-    await existingCity.PopulateState();
   }
 
   return existingCity;
@@ -97,15 +91,12 @@ const addCityService = async (body) => {
   if (!newCity) {
     throw new ApiError(500, "An Error Occured while adding City!!");
   }
-  if (newCity) {
-    await newCity.populate("createdBy updatedBy", "fullName");
-  }
 
-  if (newCity.PopulateState) {
-    await newCity.PopulateState();
-  }
-
-  return newCity;
+  return await City.findById(newCity._id).populate([
+    { path: "stateCode", select: "stateCode description" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+  ]);
 };
 
 const updateCityService = async (cityCode, body) => {
@@ -133,16 +124,14 @@ const updateCityService = async (cityCode, body) => {
     existingCity._id,
     { $set: body },
     { new: true, runValidators: true },
-  );
+  ).populate([
+    { path: "stateCode", select: "stateCode description" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+  ]);
+
   if (!updatedCity) {
     throw new ApiError(500, "Error while Updating City Record!!");
-  }
-  if (updatedCity) {
-    await updatedCity.populate("createdBy updatedBy", "fullName");
-  }
-
-  if (updatedCity.PopulateState) {
-    await updatedCity.PopulateState();
   }
 
   return updatedCity;

@@ -23,6 +23,11 @@ const getAssetCategoriesService = async (query) => {
       page: pageNum,
       limit: limitNum,
       sort: sort,
+      populate: [
+        { path: "parentCategory", select: "catCode description" },
+        { path: "createdBy", select: "fullName" },
+        { path: "updatedBy", select: "fullName" },
+      ],
     },
   );
 
@@ -58,13 +63,21 @@ const addAssetCategoryService = async (body) => {
     parentCategory: parentCategoryId,
   });
 
-  return newAssetCategory;
+  return await AssetCategory.findById(newAssetCategory._id).populate([
+    { path: "parentCategory", select: "catCode description" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+  ]);
 };
 
 const getAssetCategoryByIdService = async (catCode) => {
   const { AssetCategory } = useModels();
   //Check Category
-  const categoryData = await AssetCategory.findOne({ catCode });
+  const categoryData = await AssetCategory.findOne({ catCode }).populate([
+    { path: "parentCategory", select: "catCode description" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+  ]);
   if (!categoryData) {
     throw new ApiError(404, "Asset Category not Found!!");
   }
@@ -98,7 +111,11 @@ const updateAssetCategoryService = async (catCode, body) => {
     checkCatCode._id,
     { $set: updatedFields },
     { new: true, runValidators: true },
-  );
+  ).populate([
+    { path: "parentCategory", select: "catCode description" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+  ]);
 
   return updatedAssetCategory;
 };

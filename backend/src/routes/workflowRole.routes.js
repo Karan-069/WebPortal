@@ -15,7 +15,7 @@ router.use(verifyJWT);
 
 // Routes
 router.route("/").get(getWorkflowRole).post(addWorkflowRole);
-router.route("/:id").get(getWorkflowRoleById).patch(updateWorkflowRole);
-router.route("/:id/toggle-status").patch(toggleWorkflowRoleStatus);
+router.route("/:wfRoleCode").get(getWorkflowRoleById).patch(updateWorkflowRole);
+router.route("/:wfRoleCode/toggle-status").patch(toggleWorkflowRoleStatus);
 
 export default router;

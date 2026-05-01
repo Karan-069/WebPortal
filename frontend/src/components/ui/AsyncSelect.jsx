@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import * as Popover from "@radix-ui/react-popover";
+import { Command } from "cmdk";
 import api from "../../services/api";
-import { ChevronDown, Search, Loader2, X } from "lucide-react";
+import { ChevronDown, Search, Loader2, X, Check } from "lucide-react";
 
-/**
- * Async searchable select built on Radix Popover.
- * Provides proper positioning, Escape-to-close, click-outside dismiss,
- * and keyboard navigation for the option list.
- */
+import { apiRegistry } from "../../config/apiRegistry";
+
+// Global cache to store resolved labels for IDs across all component instances
+const hydrationCache = new Map();
+
 export default function AsyncSelect({
   endpoint,
   value,
@@ -17,6 +18,7 @@ export default function AsyncSelect({
   labelFormat = null,
   valueField = "_id",
   disabled = false,
+  queryParams = {},
   error = null,
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,100 +26,145 @@ export default function AsyncSelect({
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedLabel, setSelectedLabel] = useState("");
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const listRef = useRef(null);
-  const searchInputRef = useRef(null);
+  const [isHydrating, setIsHydrating] = useState(false);
 
   const getLabel = useCallback(
     (opt) => {
+      if (!opt) return "";
       if (typeof labelFormat === "function") return labelFormat(opt);
-      if (typeof labelFormat === "string" && opt[labelFormat]) {
-        return `${opt[labelFormat]} - ${opt[labelField]}`;
+
+      // If labelFormat is a string, use it as the primary field name
+      const effectiveLabelField =
+        typeof labelFormat === "string" && labelFormat
+          ? labelFormat
+          : labelField;
+
+      // Check cache first for ID string (to ensure consistency if we only have ID)
+      const id = String(opt[valueField] || opt._id || "");
+      if (hydrationCache.has(`${endpoint}:${id}`)) {
+        return hydrationCache.get(`${endpoint}:${id}`);
       }
 
-      // Try to find the primary descriptive label
-      let primaryLabel = opt[labelField];
-      if (!primaryLabel) {
-        primaryLabel =
-          opt["fullName"] ||
-          opt["name"] ||
-          opt["companyName"] ||
-          opt["description"] ||
-          "Unknown";
+      // 1. Dynamic Code Resolution from API Registry
+      const registryEntry = apiRegistry
+        ? Object.values(apiRegistry).find(
+            (entry) => entry?.endpoint === endpoint,
+          )
+        : null;
+      const dynamicCodeField = registryEntry?.displayIdField;
+
+      // 2. Resolve Primary Label
+      let primary =
+        opt[effectiveLabelField] ||
+        opt["fullName"] ||
+        opt["name"] ||
+        opt["roleName"] ||
+        opt["wfRoleCode"] ||
+        opt["description"] ||
+        opt["label"] ||
+        opt["title"] ||
+        "Unknown";
+
+      // 3. Resolve Code (Dynamic > Hardcoded list > ID)
+      const code =
+        opt[dynamicCodeField] ||
+        opt["itemCode"] ||
+        opt["code"] ||
+        opt["id"] ||
+        opt["recordCode"] ||
+        opt["transactionId"] ||
+        opt["roleCode"] ||
+        opt["deptCode"] ||
+        opt["uomCode"] ||
+        opt["locCode"] ||
+        opt["subCode"] ||
+        opt["vendorCode"] ||
+        opt["accountCode"];
+
+      let finalLabel = primary;
+      if (code && String(code) !== String(primary)) {
+        // Use "CODE - NAME" for premium enterprise feel
+        finalLabel = `${String(code).toUpperCase()} - ${primary}`;
       }
 
-      // Attempt to automatically prepend the system Code/ID universally
-      const knownCodeFields = ["code", "id", "no"];
-      const skipKeys = [
-        "_id",
-        "createdBy",
-        "updatedBy",
-        "isActive",
-        "password",
-        "transactionid",
-        "clientid",
-      ];
-
-      const candidateKeys = Object.keys(opt).filter(
-        (key) =>
-          !skipKeys.includes(key.toLowerCase()) &&
-          knownCodeFields.some((suffix) =>
-            key.toLowerCase().endsWith(suffix),
-          ) &&
-          opt[key] !== primaryLabel,
-      );
-
-      let codeKey = null;
-      if (candidateKeys.length > 0) {
-        codeKey =
-          candidateKeys.find(
-            (k) =>
-              k.toLowerCase().endsWith("code") &&
-              !k.toLowerCase().includes("gst"),
-          ) || candidateKeys[0];
+      // Save to cache if we have a valid ID
+      if (id && id !== "undefined" && id !== "null") {
+        hydrationCache.set(`${endpoint}:${id}`, finalLabel);
       }
 
-      if (codeKey && opt[codeKey]) {
-        return `${opt[codeKey]} - ${primaryLabel}`;
-      }
-
-      return primaryLabel;
+      return finalLabel;
     },
-    [labelFormat, labelField],
+    [labelFormat, labelField, endpoint, valueField],
   );
 
-  // Fetch options
+  // Sync Label with Value
+  useEffect(() => {
+    if (!value) {
+      setSelectedLabel("");
+      return;
+    }
+
+    // 1. If value is already a populated object, use it immediately
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      setSelectedLabel(getLabel(value));
+      return;
+    }
+
+    // 2. If value is an ID (string), check cache or fetch
+    const idToFind = String(value);
+    const cacheKey = `${endpoint}:${idToFind}`;
+
+    if (hydrationCache.has(cacheKey)) {
+      setSelectedLabel(hydrationCache.get(cacheKey));
+      return;
+    }
+
+    // Check if we already have it in current options list
+    const existing = options.find(
+      (o) => String(o[valueField] || o._id) === idToFind,
+    );
+    if (existing) {
+      const label = getLabel(existing);
+      setSelectedLabel(label);
+      return;
+    }
+
+    // If not found and looks like an ID, fetch it
+    if (idToFind && idToFind !== "[object Object]" && idToFind.length > 2) {
+      const fetchSingle = async () => {
+        setIsHydrating(true);
+        try {
+          const sanitizedId = idToFind.trim();
+          const res = await api.get(`${endpoint}/${sanitizedId}`);
+          if (res.data?.data) {
+            const label = getLabel(res.data.data);
+            setSelectedLabel(label);
+          }
+        } catch (e) {
+          console.error("AsyncSelect fetchSingle failed:", e);
+          setSelectedLabel(idToFind); // Fallback to showing ID
+        } finally {
+          setIsHydrating(false);
+        }
+      };
+      fetchSingle();
+    }
+  }, [value, endpoint, getLabel, valueField, options]);
+
   const fetchOptions = async (query = "") => {
     setLoading(true);
     try {
-      const res = await api.get(`${endpoint}?search=${query}&limit=50`);
+      const params = new URLSearchParams({
+        search: query,
+        limit: 100,
+        ...queryParams,
+      });
+      const res = await api.get(`${endpoint}?${params.toString()}`);
       const data = res.data.data;
       const docs = Array.isArray(data) ? data : data.docs || [];
       setOptions(docs);
-
-      // If we have a value but no label, find it
-      if (value && !selectedLabel) {
-        const idValue =
-          typeof value === "object" && value !== null
-            ? value[valueField] || value._id
-            : value;
-
-        if (!idValue || idValue === "[object Object]") {
-          setLoading(false);
-          return;
-        }
-
-        const selected = docs.find((opt) => opt[valueField] === idValue);
-        if (selected) setSelectedLabel(getLabel(selected));
-        else {
-          try {
-            const singleRes = await api.get(`${endpoint}/${idValue}`);
-            setSelectedLabel(getLabel(singleRes.data.data));
-          } catch (e) {}
-        }
-      }
     } catch (err) {
-      console.error("AsyncSelect fetch failed:", err);
+      console.error("AsyncSelect fetchOptions failed:", err);
     } finally {
       setLoading(false);
     }
@@ -126,182 +173,90 @@ export default function AsyncSelect({
   useEffect(() => {
     if (isOpen) {
       fetchOptions(search);
-      setHighlightedIndex(-1);
     }
   }, [isOpen, search]);
 
-  useEffect(() => {
-    if (value && !selectedLabel) {
-      fetchOptions();
-    }
-  }, [value]);
-
   const handleSelect = (option) => {
-    setSelectedLabel(getLabel(option));
-    onChange(option[valueField]);
+    // 1. Extract the ID from the selected option
+    let id = option[valueField] || option._id;
+
+    // 2. We emit ONLY the ID to the form state to keep the payload clean
+    onChange(id);
+
     setIsOpen(false);
     setSearch("");
-    setHighlightedIndex(-1);
-  };
-
-  const clearSelection = (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setSelectedLabel("");
-    onChange(null);
-    setSearch("");
-  };
-
-  // Keyboard navigation for the option list
-  const handleKeyDown = (e) => {
-    if (!options.length) return;
-
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        setHighlightedIndex((prev) => {
-          const next = prev < options.length - 1 ? prev + 1 : 0;
-          scrollToIndex(next);
-          return next;
-        });
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setHighlightedIndex((prev) => {
-          const next = prev > 0 ? prev - 1 : options.length - 1;
-          scrollToIndex(next);
-          return next;
-        });
-        break;
-      case "Enter":
-        e.preventDefault();
-        if (highlightedIndex >= 0 && highlightedIndex < options.length) {
-          handleSelect(options[highlightedIndex]);
-        }
-        break;
-      default:
-        break;
-    }
-  };
-
-  const scrollToIndex = (index) => {
-    if (listRef.current) {
-      const items = listRef.current.children;
-      if (items[index]) {
-        items[index].scrollIntoView({ block: "nearest" });
-      }
-    }
   };
 
   return (
-    <Popover.Root
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!disabled) setIsOpen(open);
-      }}
-    >
+    <Popover.Root open={isOpen} onOpenChange={(o) => !disabled && setIsOpen(o)}>
       <Popover.Trigger asChild>
         <button
           type="button"
           disabled={disabled}
-          className={`w-full px-3 py-2.5 text-sm bg-slate-50 border rounded-md transition-all flex items-center justify-between ${
+          className={`w-full px-3 py-2.5 text-sm bg-slate-50 border rounded-xl transition-all flex items-center justify-between ${
             disabled
               ? "cursor-not-allowed opacity-70 bg-slate-100"
-              : "cursor-pointer"
+              : "cursor-pointer hover:border-slate-400"
           } ${
             error
               ? "border-red-300 ring-1 ring-red-50"
               : isOpen
-                ? "border-slate-900 border-2"
+                ? "border-indigo-500 ring-2 ring-indigo-50"
                 : "border-slate-200"
           }`}
         >
           <span
             className={`truncate text-left ${selectedLabel ? "text-slate-900 font-medium" : "text-slate-400"}`}
           >
-            {selectedLabel || placeholder}
+            {isHydrating ? "Loading..." : selectedLabel || placeholder}
           </span>
-          <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-            {selectedLabel && !disabled && (
-              <span
-                role="button"
-                className="w-4 h-4 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200 inline-flex items-center justify-center"
-                onClick={clearSelection}
-                onPointerDown={(e) => e.preventDefault()}
-              >
-                <X className="w-3 h-3" />
-              </span>
-            )}
-            <ChevronDown
-              className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-            />
-          </div>
+          <ChevronDown
+            className={`w-4 h-4 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          />
         </button>
       </Popover.Trigger>
 
       <Popover.Portal>
         <Popover.Content
-          className="z-[200] w-[var(--radix-popover-trigger-width)] bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-          sideOffset={4}
+          className="z-[200] w-[var(--radix-popover-trigger-width)] bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+          sideOffset={8}
           align="start"
-          onOpenAutoFocus={(e) => {
-            e.preventDefault();
-            searchInputRef.current?.focus();
-          }}
-          onKeyDown={handleKeyDown}
         >
-          {/* Search Bar */}
-          <div className="p-2 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-            <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-              className="bg-transparent border-none text-sm w-full outline-none placeholder:text-slate-400 py-1"
-            />
-          </div>
+          <Command shouldFilter={false} className="flex flex-col">
+            <div className="flex items-center gap-2 px-3 border-b border-slate-100">
+              <Search className="w-4 h-4 text-slate-400" />
+              <Command.Input
+                value={search}
+                onValueChange={setSearch}
+                placeholder="Search..."
+                className="flex w-full py-3 text-sm bg-transparent outline-none"
+              />
+              {loading && (
+                <Loader2 className="w-3 h-3 animate-spin text-slate-400" />
+              )}
+            </div>
 
-          {/* Options List */}
-          <div
-            className="max-h-[220px] overflow-y-auto"
-            ref={listRef}
-            role="listbox"
-          >
-            {loading && options.length === 0 ? (
-              <div className="p-4 text-center text-slate-400 text-xs">
-                <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
-                Searching...
-              </div>
-            ) : options.length === 0 ? (
-              <div className="p-4 text-center text-slate-400 text-xs italic">
-                No results found.
-              </div>
-            ) : (
-              options.map((opt, idx) => (
-                <div
-                  key={opt[valueField]}
-                  role="option"
-                  aria-selected={value === opt[valueField]}
-                  onClick={() => handleSelect(opt)}
-                  onMouseEnter={() => setHighlightedIndex(idx)}
-                  className={`px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between ${
-                    value === opt[valueField]
-                      ? "bg-sky-50 text-sky-700 font-bold"
-                      : highlightedIndex === idx
-                        ? "bg-slate-100 text-slate-900"
-                        : "text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {getLabel(opt)}
-                  {value === opt[valueField] && (
-                    <div className="w-1.5 h-1.5 bg-sky-600 rounded-full flex-shrink-0" />
-                  )}
+            <Command.List className="max-h-[250px] overflow-y-auto p-1">
+              {options.length === 0 && !loading && (
+                <div className="py-6 text-center text-sm text-slate-400">
+                  No results found
                 </div>
-              ))
-            )}
-          </div>
+              )}
+              {options.map((opt) => (
+                <Command.Item
+                  key={String(opt[valueField] || opt._id)}
+                  onSelect={() => handleSelect(opt)}
+                  className="px-3 py-2 text-sm rounded-lg cursor-pointer hover:bg-slate-100 aria-selected:bg-slate-100 flex items-center justify-between group"
+                >
+                  <span className="truncate">{getLabel(opt)}</span>
+                  {String(value?.[valueField] || value?._id || value) ===
+                    String(opt[valueField] || opt._id) && (
+                    <Check className="w-4 h-4 text-indigo-600" />
+                  )}
+                </Command.Item>
+              ))}
+            </Command.List>
+          </Command>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

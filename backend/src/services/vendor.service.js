@@ -4,6 +4,7 @@ import { useModels } from "../utils/tenantContext.js";
 import { submitToWorkflow } from "./workflow.service.js";
 import { getLookupQuery } from "../utils/lookupHelper.js";
 import mongoose from "mongoose";
+import { enrichWithWorkflowState } from "../utils/workflowHelper.js";
 
 const getVendorsService = async (query = {}) => {
   const { Vendor } = useModels();
@@ -46,7 +47,8 @@ const getVendorsService = async (query = {}) => {
   });
 
   const { docs, totalDocs, totalPages, page, limit } = vendorsData;
-  return { docs, totalDocs, totalPages, page, limit };
+  const enrichedDocs = await enrichWithWorkflowState(docs, "Vendor");
+  return { docs: enrichedDocs, totalDocs, totalPages, page, limit };
 };
 
 const getVendorByIdService = async (id) => {

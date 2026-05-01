@@ -2,8 +2,8 @@ import { ApiError } from "../utils/ApiError.js";
 import { toggleStatus } from "../utils/toggleStatus.js";
 import { useModels } from "../utils/tenantContext.js";
 import { getLookupQuery } from "../utils/lookupHelper.js";
-
 import mongoose from "mongoose";
+import { enrichWithWorkflowState } from "../utils/workflowHelper.js";
 
 const getItemsService = async (query = {}) => {
   const { Item } = useModels();
@@ -32,10 +32,12 @@ const getItemsService = async (query = {}) => {
     limit: limitNum,
     sort: sort,
     populate: [
-      { path: "baseUnit", select: "description" },
-      { path: "saleUnit", select: "description" },
-      { path: "purchaseUnit", select: "description" },
-      { path: "consumptionUnit", select: "description" },
+      { path: "baseUnit", select: "description uomCode" },
+      { path: "saleUnit", select: "description uomCode" },
+      { path: "purchaseUnit", select: "description uomCode" },
+      { path: "consumptionUnit", select: "description uomCode" },
+      { path: "createdBy", select: "fullName" },
+      { path: "updatedBy", select: "fullName" },
     ],
   });
 
@@ -46,8 +48,9 @@ const getItemsService = async (query = {}) => {
     page: currentPage,
     limit: currentLimit,
   } = itemsData;
+  const enrichedDocs = await enrichWithWorkflowState(docs, "Item");
   return {
-    docs,
+    docs: enrichedDocs,
     totalDocs,
     totalPages,
     page: currentPage,
@@ -59,13 +62,13 @@ const getItemByIdService = async (id) => {
   const { Item } = useModels();
 
   const populateFields = [
-    "baseUnit",
-    "saleUnit",
-    "purchaseUnit",
-    "consumptionUnit",
-    { path: "createdBy", select: "fullName email" },
-    { path: "updatedBy", select: "fullName email" },
-    { path: "approvedBy", select: "fullName email" },
+    { path: "baseUnit", select: "description uomCode" },
+    { path: "saleUnit", select: "description uomCode" },
+    { path: "purchaseUnit", select: "description uomCode" },
+    { path: "consumptionUnit", select: "description uomCode" },
+    { path: "createdBy", select: "fullName" },
+    { path: "updatedBy", select: "fullName" },
+    { path: "approvedBy", select: "fullName" },
   ];
 
   const query = getLookupQuery(id, "itemCode");

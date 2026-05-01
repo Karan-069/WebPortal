@@ -32,15 +32,12 @@ const chartOfAccountsSchema = new Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 chartOfAccountsSchema.plugin(mongoosePaginate);
 chartOfAccountsSchema.plugin(auditPlugin);
 chartOfAccountsSchema.plugin(autoCodePlugin, { moduleName: "chartOfAccounts" });
 
-export const ChartOfAccounts = mongoose.model(
-  "ChartOfAccounts",
-  chartOfAccountsSchema,
-);
+export const ChartOfAccounts = mongoose.model("ChartOfAccounts", chartOfAccountsSchema);
 export { chartOfAccountsSchema };

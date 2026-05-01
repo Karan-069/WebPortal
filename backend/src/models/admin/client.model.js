@@ -33,7 +33,7 @@ const clientSchema = new Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 clientSchema.plugin(autoCodePlugin, { moduleName: "client" });

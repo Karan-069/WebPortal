@@ -3,6 +3,7 @@ import { submitToWorkflow, processWorkflowAction } from "./workflow.service.js";
 import mongoose from "mongoose";
 import { useModels } from "../utils/tenantContext.js";
 import { getLookupQuery } from "../utils/lookupHelper.js";
+import { enrichWithWorkflowState } from "../utils/workflowHelper.js";
 
 const createBillService = async (userId, body) => {
   const { Bill } = useModels();
@@ -23,9 +24,18 @@ const createBillService = async (userId, body) => {
   return bill;
 };
 
-const getBillsService = async (query = {}) => {
-  const { Bill } = useModels();
-  const { page = 1, limit = 10, search = "", sortBy, sortOrder } = query;
+const getBillsService = async (query = {}, user = null) => {
+  const { Bill, WorkflowState, Workflow } = useModels();
+  const {
+    page = 1,
+    limit = 10,
+    search = "",
+    sortBy,
+    sortOrder,
+    wfStatus,
+    status,
+    assignedToMe,
+  } = query;
   const pageNum = parseInt(page) > 0 ? parseInt(page) : 1;
   const limitNum = parseInt(limit) > 0 ? parseInt(limit) : 10;
 
@@ -35,6 +45,35 @@ const getBillsService = async (query = {}) => {
       { transactionId: { $regex: search, $options: "i" } },
       { invoiceNo: { $regex: search, $options: "i" } },
     ];
+  }
+
+  if (wfStatus) filter.workflowStatus = wfStatus;
+  if (status) filter.transactionStatus = status;
+
+  // Special logic for Dashboard KPI: Assigned to Me
+  if (assignedToMe === "true" && user) {
+    const wfRoles = user.workflowRoles || [];
+    // Find all WorkflowStates where status is pending
+    const pendingStates = await WorkflowState.find({
+      status: "pending",
+    }).populate("workflowId");
+
+    // Filter those where current stage matches user's role
+    const myTransactionIds = pendingStates
+      .filter((s) => {
+        const currentStage = s.workflowId?.WorkflowStage?.find(
+          (st) => st.stageNumber === s.currentStageNumber,
+        );
+        return (
+          currentStage &&
+          wfRoles.some(
+            (r) => r.toString() === currentStage.stageApproverRole?.toString(),
+          )
+        );
+      })
+      .map((s) => s.transactionId);
+
+    filter._id = { $in: myTransactionIds };
   }
 
   const sort = {};
@@ -62,8 +101,9 @@ const getBillsService = async (query = {}) => {
     page: currentPage,
     limit: currentLimit,
   } = billsData;
+  const enrichedDocs = await enrichWithWorkflowState(docs, "Bill");
   return {
-    docs,
+    docs: enrichedDocs,
     totalDocs,
     totalPages,
     page: currentPage,
@@ -77,13 +117,15 @@ const getBillByIdService = async (id) => {
   // Check if id is a valid MongoId, otherwise treat as transactionId
   const query = getLookupQuery(id, "transactionId");
 
-  const bill = await Bill.findOne(query)
-    .populate("vendor")
-    .populate("department")
-    .populate("subsidiary")
-    .populate("createdBy")
-    .populate("itemDetails.itemCode")
-    .populate("itemDetails.uom");
+  const bill = await Bill.findOne(query).populate([
+    { path: "vendor", select: "fullName vendorId" },
+    { path: "department", select: "description deptCode" },
+    { path: "subsidiary", select: "description subCode" },
+    { path: "createdBy", select: "fullName email" },
+    { path: "updatedBy", select: "fullName" },
+    { path: "itemDetails.itemCode", select: "description itemCode" },
+    { path: "itemDetails.uom", select: "description uomCode" },
+  ]);
 
   if (!bill) {
     throw new ApiError(404, "Bill not found");

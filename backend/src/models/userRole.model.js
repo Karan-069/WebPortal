@@ -25,7 +25,7 @@ const userRoleSchema = new Schema(
         },
         permissions: {
           type: [String],
-          enum: ["add", "edit", "approve", "view", "submit", "all"],
+          enum: ["add", "edit", "view", "delete", "all"],
           required: [true, "Permissions are Mandatory!!"],
         },
       },
@@ -46,7 +46,11 @@ userRoleSchema.plugin(autoCodePlugin, { moduleName: "userRole" });
 
 userRoleSchema.methods.PopulateMenus = async function () {
   try {
-    await this.populate({ path: "menus.menuId", select: "menuId description" });
+    await this.populate({
+      path: "menus.menuId",
+      select:
+        "menuId description parentMenu sortOrder icon menuLevel menuType permissions isActive",
+    });
   } catch (error) {
     throw new ApiError(500, error?.message || "Error while Populating MenuIds");
   }

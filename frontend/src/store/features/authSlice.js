@@ -15,10 +15,36 @@ export const switchRole = createAsyncThunk(
   },
 );
 
+export const refreshProfile = createAsyncThunk(
+  "auth/refreshProfile",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get("/users/current-user");
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to refresh profile",
+      );
+    }
+  },
+);
+
 const initialState = {
-  user: JSON.parse(localStorage.getItem("user")) || null,
+  user: (() => {
+    try {
+      const stored = localStorage.getItem("user");
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      console.error("Auth hydration failed:", e);
+      localStorage.removeItem("user");
+      return null;
+    }
+  })(),
   token: localStorage.getItem("token") || null,
-  tenantId: localStorage.getItem("tenantId") || null,
+  tenantId: (() => {
+    const tid = localStorage.getItem("tenantId");
+    return tid ? tid.replace(/^"(.*)"$/, "$1").replace(/"/g, "") : null;
+  })(),
   isAuthenticated: !!localStorage.getItem("token"),
   status: "idle",
   error: null,
@@ -29,12 +55,15 @@ export const authSlice = createSlice({
   initialState,
   reducers: {
     loginSuccess: (state, action) => {
-      const { user, accessToken, tenantId } = action.payload;
+      const { user, token, accessToken, tenantId } = action.payload;
+      const finalToken = accessToken || token; // Handle both naming conventions
+
       state.user = user;
-      state.token = accessToken;
+      state.token = finalToken;
       state.tenantId = tenantId;
       state.isAuthenticated = true;
-      localStorage.setItem("token", accessToken);
+
+      localStorage.setItem("token", finalToken);
       localStorage.setItem("user", JSON.stringify(user));
       if (tenantId) {
         localStorage.setItem("tenantId", tenantId);
@@ -72,6 +101,11 @@ export const authSlice = createSlice({
       .addCase(switchRole.rejected, (state, action) => {
         state.status = "failed";
         state.error = action.payload;
+      })
+      .addCase(refreshProfile.fulfilled, (state, action) => {
+        const user = action.payload.data;
+        state.user = user;
+        localStorage.setItem("user", JSON.stringify(user));
       });
   },
 });

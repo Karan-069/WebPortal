@@ -15,10 +15,12 @@ const departmentSchema = new Schema(
       type: String,
     },
     departmentHead: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "User",
     },
     location: {
-      type: String,
+      type: Schema.Types.ObjectId,
+      ref: "Location",
     },
     isActive: {
       type: Boolean,

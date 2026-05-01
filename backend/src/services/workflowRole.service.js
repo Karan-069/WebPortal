@@ -15,23 +15,34 @@ const getWorkflowRoleService = async (query) => {
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
   }
 
-  const filter = search
-    ? {
-        $or: [
-          { wfRoleCode: { $regex: search, $options: "i" } },
-          { description: { $regex: search, $options: "i" } },
-        ],
-      }
-    : {};
+  const filter = {};
+  if (search) {
+    filter.$or = [
+      { wfRoleCode: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  if (query.wfRoleType) {
+    filter.wfRoleType = {
+      $in: Array.isArray(query.wfRoleType)
+        ? query.wfRoleType
+        : [query.wfRoleType],
+    };
+  }
 
   const getWorkflowRoleData = await WorkflowRole.paginate(filter, {
     page: pageNum,
     limit: limitNum,
     sort,
+    populate: [
+      { path: "createdBy", select: "fullName" },
+      { path: "updatedBy", select: "fullName" },
+    ],
   });
 
   const { docs, ...pagination } = getWorkflowRoleData;
-  return { data: docs, pagination };
+  return { docs, ...pagination };
 };
 
 const getWorkflowRoleByIdService = async (id) => {
@@ -49,13 +60,7 @@ const getWorkflowRoleByIdService = async (id) => {
 
 const addWorkflowRoleService = async (body) => {
   const { WorkflowRole } = useModels();
-  const { wfRoleCode, description } = body;
-
-  const wfRoleType = Array.isArray(body.wfRoleType)
-    ? body.wfRoleType
-    : typeof body.wfRoleType === "string"
-      ? [body.wfRoleType]
-      : [];
+  const { wfRoleCode, roleName, description, wfRoleType, canDelegate } = body;
 
   if (!wfRoleCode) {
     throw new ApiError(400, "Workflow Code is Mandatory!!");
@@ -68,21 +73,24 @@ const addWorkflowRoleService = async (body) => {
     throw new ApiError(400, "Workflow Role Already Exists!!");
   }
 
-  if (!description || !wfRoleType) {
-    throw new ApiError(400, "Description / Workflow Role is Mandatory!!");
+  if (!description || !roleName || !wfRoleType) {
+    throw new ApiError(
+      400,
+      "Description / Role Name / Workflow Role is Mandatory!!",
+    );
   }
 
-  const modelwfType = ["submit", "approve", "reject", "delegate", "admin"];
-  const checkwfType = wfRoleType.every((role) => modelwfType.includes(role));
-
-  if (!checkwfType) {
-    throw new ApiError(400, "Work Role Type must be from the provided Types!!");
+  const allowedTypes = ["initiator", "approver", "admin"];
+  if (!allowedTypes.includes(wfRoleType?.toLowerCase())) {
+    throw new ApiError(400, "Invalid Workflow Role Category!!");
   }
 
   const createWfRole = await WorkflowRole.create({
     wfRoleCode,
+    roleName,
     description,
     wfRoleType,
+    canDelegate: !!canDelegate,
   });
 
   if (!createWfRole) {
@@ -97,14 +105,7 @@ const addWorkflowRoleService = async (body) => {
 
 const updateWorkflowRoleService = async (id, body) => {
   const { WorkflowRole } = useModels();
-  const { description } = body;
-
-  // Normalize wfRoleType to always be an array
-  const wfRoleType = Array.isArray(body.wfRoleType)
-    ? body.wfRoleType
-    : typeof body.wfRoleType === "string"
-      ? [body.wfRoleType]
-      : [];
+  const { roleName, description, wfRoleType, canDelegate } = body;
 
   const query = getLookupQuery(id, "wfRoleCode");
   const existingWfRole = await WorkflowRole.findOne(query).populate(
@@ -115,17 +116,18 @@ const updateWorkflowRoleService = async (id, body) => {
     throw new ApiError(404, "Workflow Role not Found!!");
   }
 
-  if (!description || !wfRoleType) {
-    throw new ApiError(400, "Description / Workflow Role is Mandatory!!");
-  }
-
-  const modelwfType = ["submit", "approve", "reject", "delegate", "admin"];
-  const checkwfType = wfRoleType.every((role) => modelwfType.includes(role));
-  if (!checkwfType) {
+  if (!description || !roleName || !wfRoleType) {
     throw new ApiError(
       400,
-      "Workflow Role Type must be from the provided Types!!",
+      "Description / Role Name / Workflow Role is Mandatory!!",
     );
+  }
+
+  if (wfRoleType) {
+    const allowedTypes = ["initiator", "approver", "admin"];
+    if (!allowedTypes.includes(wfRoleType.toLowerCase())) {
+      throw new ApiError(400, "Invalid Workflow Role Category!!");
+    }
   }
 
   const updatedwfRole = await WorkflowRole.findByIdAndUpdate(

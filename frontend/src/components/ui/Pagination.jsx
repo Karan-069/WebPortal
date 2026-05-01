@@ -5,6 +5,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
+import { cn } from "../../lib/utils";
+import Button from "./Button";
 
 export default function Pagination({
   page,
@@ -38,107 +40,126 @@ export default function Pagination({
   return (
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-white border-t border-slate-200 gap-3">
       {/* LEFT: INFO */}
-      <p className="text-sm text-slate-500">
-        Showing{" "}
-        <span className="font-semibold text-slate-900">{startItem}</span> to{" "}
-        <span className="font-semibold text-slate-900">{endItem}</span> of{" "}
-        <span className="font-semibold text-slate-900">{totalDocs}</span>{" "}
-        results
+      <p className="text-[12px] text-slate-500 font-medium">
+        Showing <span className="font-bold text-slate-900">{startItem}</span> to{" "}
+        <span className="font-bold text-slate-900">{endItem}</span> of{" "}
+        <span className="font-bold text-slate-900">{totalDocs}</span> results
       </p>
 
       {/* RIGHT: CONTROLS */}
       <div className="flex items-center gap-4 justify-between sm:justify-end w-full sm:w-auto">
         {/* ROWS SELECTOR */}
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-slate-500">Rows:</label>
-          <select
-            value={limit}
-            onChange={(e) => {
-              const newLimit = Number(e.target.value);
-              onLimitChange(newLimit);
-              onPageChange(1);
-            }}
-            className="border border-slate-300 rounded-md text-sm px-2 py-1 bg-white"
-          >
-            {[25, 50, 100, 200].map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-        </div>
+        {onLimitChange && (
+          <div className="flex items-center gap-3">
+            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] leading-none">
+              Rows
+            </label>
+            <select
+              value={limit}
+              onChange={(e) => {
+                const newLimit = Number(e.target.value);
+                onLimitChange(newLimit);
+                onPageChange(1);
+              }}
+              className="h-8 border border-slate-200 rounded-lg text-[11px] font-bold px-2 bg-slate-50 text-slate-700 outline-none focus:border-indigo-400 transition-all cursor-pointer"
+            >
+              {[10, 20, 50, 100, 200].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* MOBILE BUTTONS */}
-        <div className="flex sm:hidden w-full justify-between">
-          <button
+        <div className="flex sm:hidden w-full gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            fullWidth
             onClick={() => onPageChange(page - 1)}
             disabled={page === 1}
-            className="px-4 py-2 text-sm border rounded-md disabled:opacity-50"
+            leftIcon={<ChevronLeft size={14} />}
           >
-            Previous
-          </button>
+            Prev
+          </Button>
 
-          <button
+          <Button
+            variant="outline"
+            size="sm"
+            fullWidth
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-            className="px-4 py-2 text-sm border rounded-md disabled:opacity-50"
+            rightIcon={<ChevronRight size={14} />}
           >
             Next
-          </button>
+          </Button>
         </div>
 
         {/* DESKTOP PAGINATION */}
-        <nav className="hidden sm:inline-flex rounded-md shadow-sm -space-x-px">
+        <nav className="hidden sm:flex items-center gap-1.5">
           {/* FIRST */}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onPageChange(1)}
             disabled={page === 1}
-            className="px-2 py-2 border rounded-l-md bg-white disabled:opacity-50"
+            className="w-9 px-0"
           >
             <ChevronsLeft className="w-4 h-4" />
-          </button>
+          </Button>
 
           {/* PREV */}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onPageChange(page - 1)}
             disabled={page === 1}
-            className="px-2 py-2 border bg-white disabled:opacity-50"
+            className="w-9 px-0"
           >
             <ChevronLeft className="w-4 h-4" />
-          </button>
+          </Button>
 
           {/* PAGE NUMBERS */}
-          {getPageNumbers().map((n) => (
-            <button
-              key={n}
-              onClick={() => onPageChange(n)}
-              className={`px-4 py-2 border text-sm font-semibold ${
-                page === n
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              {n}
-            </button>
-          ))}
+          <div className="flex items-center gap-1 mx-2">
+            {getPageNumbers().map((n) => (
+              <Button
+                key={n}
+                size="sm"
+                variant={page === n ? "primary" : "ghost"}
+                onClick={() => onPageChange(n)}
+                className={cn(
+                  "w-9 px-0",
+                  page === n ? "shadow-indigo-100" : "text-slate-500 font-bold",
+                )}
+              >
+                {n}
+              </Button>
+            ))}
+          </div>
 
           {/* NEXT */}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages}
-            className="px-2 py-2 border bg-white disabled:opacity-50"
+            className="w-9 px-0"
           >
             <ChevronRight className="w-4 h-4" />
-          </button>
+          </Button>
 
           {/* LAST */}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => onPageChange(totalPages)}
             disabled={page >= totalPages}
-            className="px-2 py-2 border rounded-r-md bg-white disabled:opacity-50"
+            className="w-9 px-0"
           >
             <ChevronsRight className="w-4 h-4" />
-          </button>
+          </Button>
         </nav>
       </div>
     </div>

@@ -25,6 +25,7 @@ const auditLogSchema = new Schema(
         newValue: Schema.Types.Mixed,
         oldDisplayValue: String, // Resolves IDs to Names
         newDisplayValue: String,
+        isLineItem: { type: Boolean, default: false },
       },
     ],
     performedBy: {

@@ -9,6 +9,8 @@ import BillForm from "./pages/bills/BillForm";
 import MasterList from "./pages/master/MasterList";
 import MasterForm from "./pages/master/MasterForm";
 import ItemForm from "./pages/master/item/ItemForm";
+import UserRoleManager from "./pages/master/UserRoleManager";
+import WorkflowManager from "./pages/master/WorkflowManager";
 import {
   LayoutDashboard,
   Receipt,
@@ -27,6 +29,7 @@ import VendorCompleteProfile from "./pages/vendor/VendorCompleteProfile";
 // Import Dashboard Page
 import DashboardPage from "./pages/dashboard/DashboardPage";
 import ChangePassword from "./pages/auth/ChangePassword";
+import ProfilePage from "./pages/auth/ProfilePage";
 import RadixPlayground from "./pages/RadixPlayground";
 
 function App() {
@@ -40,6 +43,7 @@ function App() {
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="profile" element={<ProfilePage />} />
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="radix-playground" element={<RadixPlayground />} />
 
@@ -61,6 +65,15 @@ function App() {
             <Route path="item/new" element={<ItemForm />} />
             <Route path="item/:id" element={<ItemForm />} />
             <Route path="item/:id/edit" element={<ItemForm />} />
+
+            {/* Specialized Role & Workflow Managers */}
+            <Route path="userRole/new" element={<UserRoleManager />} />
+            <Route path="userRole/:id" element={<UserRoleManager />} />
+            <Route path="userRole/:id/edit" element={<UserRoleManager />} />
+
+            <Route path="workflow/new" element={<WorkflowManager />} />
+            <Route path="workflow/:id" element={<WorkflowManager />} />
+            <Route path="workflow/:id/edit" element={<WorkflowManager />} />
 
             {/* Master Data — Clean URLs without /api/v1 prefix */}
             <Route path="/:module" element={<MasterList />} />
@@ -99,16 +112,24 @@ function App() {
       <Toaster
         position="top-right"
         toastOptions={{
+          duration: 4000,
           style: {
-            borderRadius: "12px",
             background: "#0f172a",
             color: "#f8fafc",
-            fontSize: "14px",
-            padding: "12px 16px",
-            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+            fontSize: "13px",
+            fontWeight: "600",
+            padding: "12px 18px",
+            borderRadius: "16px",
+            border: "1px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
+            fontFamily: "Inter, sans-serif",
           },
-          success: { iconTheme: { primary: "#10b981", secondary: "#f8fafc" } },
-          error: { iconTheme: { primary: "#ef4444", secondary: "#f8fafc" } },
+          success: {
+            iconTheme: { primary: "#10b981", secondary: "#0f172a" },
+          },
+          error: {
+            iconTheme: { primary: "#ef4444", secondary: "#0f172a" },
+          },
         }}
       />
     </BrowserRouter>

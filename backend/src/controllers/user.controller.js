@@ -8,6 +8,7 @@ import {
   deactivateUserService,
   logoutUserService,
   changePasswordService,
+  resetUserPasswordService,
   switchRoleService,
 } from "../services/user.service.js";
 
@@ -95,17 +96,18 @@ const registerUser = asyncHandler(async (req, res) => {
  * Get Current User
  */
 const getCurrentUser = asyncHandler(async (req, res) => {
-  const user = await getCurrentUserService(req.user._id);
+  const userId = req.params.id || req.user._id;
+  const user = await getCurrentUserService(userId);
   return res
     .status(200)
-    .json(new ApiResponse(200, user, "Current user fetched successfully"));
+    .json(new ApiResponse(200, user, "User data fetched successfully"));
 });
 
 /**
  * Get All Users
  */
 const getAllUsers = asyncHandler(async (req, res) => {
-  const users = await getAllUsersService();
+  const users = await getAllUsersService(req.query);
   return res
     .status(200)
     .json(new ApiResponse(200, users, "Users fetched successfully"));
@@ -160,6 +162,23 @@ const changeUserPassword = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Admin: Reset User Password
+ */
+const resetUserPassword = asyncHandler(async (req, res) => {
+  const { userId, tempPassword } = req.body;
+  await resetUserPasswordService(userId, tempPassword);
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        null,
+        "User password reset successfully. User will be forced to change it on next login.",
+      ),
+    );
+});
+
+/**
  * Switch User Role
  */
 const switchRole = asyncHandler(async (req, res) => {
@@ -209,5 +228,6 @@ export {
   deactivateUser,
   logoutUser,
   changeUserPassword,
+  resetUserPassword,
   switchRole,
 };

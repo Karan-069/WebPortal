@@ -9,17 +9,12 @@ import {
 } from "../services/userRole.service.js";
 
 const getUserRole = asyncHandler(async (req, res) => {
-  const { data, pagination } = await getUserRoleService(req.query);
+  const result = await getUserRoleService(req.query);
 
   return res
     .status(200)
     .json(
-      new ApiResponse(
-        200,
-        data,
-        "User Roles Data Fetched Successfully!!",
-        pagination,
-      ),
+      new ApiResponse(200, result, "User Roles Data Fetched Successfully!!"),
     );
 });
 

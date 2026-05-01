@@ -13,6 +13,11 @@ const UserSchema = new Schema(
       unique: true,
       trim: true,
     },
+    userCode: {
+      type: String,
+      unique: true,
+      trim: true,
+    },
     password: {
       type: String,
       required: [true, "Password is Mandatory"],
@@ -21,24 +26,11 @@ const UserSchema = new Schema(
       type: String,
       required: true,
     },
-    userRoles: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "UserRole",
-        required: [true, "At least one User Role is Mandatory!!"],
-      },
-    ],
-    workflowRoles: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "WorkflowRole",
-        required: [true, "At least one Workflow Role is Mandatory!!"],
-      },
-    ],
     roleAssignments: [
       {
         userRole: { type: Schema.Types.ObjectId, ref: "UserRole" },
         workflowRole: { type: Schema.Types.ObjectId, ref: "WorkflowRole" },
+        isDefault: { type: Boolean, default: false },
       },
     ],
     defaultRoleAssignment: {
@@ -65,9 +57,17 @@ const UserSchema = new Schema(
       type: String,
       enum: ["user", "vendor"],
     },
+    isSuperAdmin: {
+      type: Boolean,
+      default: false,
+    },
     isActive: {
       type: Boolean,
       default: true,
+    },
+    mustChangePassword: {
+      type: Boolean,
+      default: false,
     },
   },
   {
@@ -95,6 +95,7 @@ UserSchema.methods.generateAccessToken = function () {
       userRole: this.activeRole,
       workflowRole: this.activeWorkflowRole,
       accessType: this.accessType,
+      isSuperAdmin: this.isSuperAdmin,
     },
     process.env.JWT_ACCESS_SECRET_KEY,
     {
@@ -117,8 +118,11 @@ UserSchema.methods.generateRefreshToken = function () {
 };
 
 import { auditPlugin } from "../utils/auditPlugin.js";
+import { autoCodePlugin } from "../utils/autoCodePlugin.js";
+
 UserSchema.plugin(auditPlugin);
 UserSchema.plugin(mongoosePaginate);
+UserSchema.plugin(autoCodePlugin, { moduleName: "user" });
 
 export const User = mongoose.model("User", UserSchema);
 export { UserSchema };

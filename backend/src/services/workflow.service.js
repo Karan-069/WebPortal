@@ -18,18 +18,85 @@ const _isAmountValidForStage = (amount, stage) => {
   return txnAmount >= stageMin && txnAmount <= stageMax;
 };
 
+const _getWfState = async (
+  WorkflowState,
+  transactionId,
+  transactionModel,
+  session = null,
+) => {
+  const modelQuery = { $regex: new RegExp(`^${transactionModel}$`, "i") };
+  const query = {
+    transactionModel: modelQuery,
+    $or: [{ transactionId: transactionId }],
+  };
+
+  if (mongoose.isValidObjectId(transactionId)) {
+    query.$or.push({
+      transactionId: new mongoose.Types.ObjectId(transactionId),
+    });
+  }
+
+  const findQuery = WorkflowState.findOne(query);
+  if (session) findQuery.session(session);
+  return await findQuery;
+};
+
+//===========Get Approver Emails===========
+
+const _getApproverEmails = async (stage) => {
+  const { User } = useModels();
+  const emails = [];
+
+  // 1. Check for Specific Approvers (Directly assigned to stage)
+  if (stage.specificApprovers && stage.specificApprovers.length > 0) {
+    const directUsers = await User.find({
+      _id: { $in: stage.specificApprovers },
+    }).select("email");
+    emails.push(...directUsers.map((u) => u.email));
+  }
+
+  if (stage.specificApprover) {
+    const u = await User.findById(stage.specificApprover).select("email");
+    if (u?.email) emails.push(u.email);
+  }
+
+  // 2. Check for Role-based Approvers
+  if (stage.stageApproverRole) {
+    const roleUsers = await User.find({
+      "roleAssignments.workflowRole": stage.stageApproverRole,
+      isActive: true,
+    }).select("email");
+    emails.push(...roleUsers.map((u) => u.email));
+  }
+
+  return [...new Set(emails.filter(Boolean))]; // Unique non-null emails
+};
+
 //===========Extract Recipients===========
 
-const _extractRecipients = (stage) => {
+const _extractRecipients = async (stage) => {
   const to = [],
     cc = [],
     bcc = [];
+
+  // Get manual notification recipients
   for (const r of stage.notificationRecipients || []) {
     if (r.type === "cc") cc.push(r.email);
     else if (r.type === "bcc") bcc.push(r.email);
     else to.push(r.email);
   }
-  return { to, cc, bcc };
+
+  // If this is an approval stage, also include the actual approvers in the 'to' list
+  if (!stage.isNotificationOnly) {
+    const approverEmails = await _getApproverEmails(stage);
+    to.push(...approverEmails);
+  }
+
+  return {
+    to: [...new Set(to.filter(Boolean))],
+    cc: [...new Set(cc.filter(Boolean))],
+    bcc: [...new Set(bcc.filter(Boolean))],
+  };
 };
 
 //===========Advance To Next Stage===========
@@ -63,7 +130,7 @@ const _advanceToNextStage = async (
 
     // ── Notification-Only Stage ───────────────────────────────────────────────
     if (stage.isNotificationOnly) {
-      const { to, cc, bcc } = _extractRecipients(stage);
+      const { to, cc, bcc } = await _extractRecipients(stage);
 
       await WorkflowLog.create(
         [
@@ -123,18 +190,25 @@ export const submitToWorkflow = async (
   moduleContext = null,
 ) => {
   const { User, Workflow, WorkflowState, WorkflowLog } = useModels();
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).populate("activeWorkflowRole");
   if (!user) throw new ApiError(404, "User not found");
 
+  // Robust role selection: check active role first, then fallback to default if active is missing
+  const effectiveRole =
+    user.activeWorkflowRole?._id || user.defaultRoleAssignment?.workflowRole;
+
   const query = {
-    transactionType: transactionModel,
-    initiatorRole: user.userRole,
+    transactionType: { $regex: new RegExp(`^${transactionModel}$`, "i") },
+    initiatorRole: effectiveRole,
     isActive: true,
   };
   if (moduleContext) query.moduleContext = moduleContext;
 
   const workflow = await Workflow.findOne(query).sort({ createdAt: -1 });
   if (!workflow) {
+    console.error(
+      `[WorkflowService] Resolution failed. Model: ${transactionModel}, Role: ${effectiveRole}, UserId: ${userId}`,
+    );
     throw new ApiError(
       404,
       `No active workflow found for type '${transactionModel}' matching user role.`,
@@ -149,10 +223,12 @@ export const submitToWorkflow = async (
   session.startTransaction();
 
   try {
-    const existingState = await WorkflowState.findOne({
+    const existingState = await _getWfState(
+      WorkflowState,
       transactionId,
       transactionModel,
-    }).session(session);
+      session,
+    );
 
     if (existingState && !["rejected"].includes(existingState.status)) {
       throw new ApiError(400, "Transaction is already in an active workflow.");
@@ -201,7 +277,7 @@ export const submitToWorkflow = async (
       [
         {
           transactionId,
-          transactionModel,
+          transactionModel: wfState.transactionModel,
           workflowId: workflow._id,
           StageNo: wfState.currentStageNumber || 1,
           StageStatus: "submit",
@@ -239,17 +315,22 @@ export const processWorkflowAction = async (
   const { User, Workflow, WorkflowState, WorkflowLog } = useModels();
   const { comments, delegatedToUserId } = payload;
 
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).populate("activeWorkflowRole");
   if (!user) throw new ApiError(404, "User not found");
+
+  // Helper to normalize IDs for comparison
+  const getStrId = (val) => val?._id?.toString() || val?.toString() || null;
 
   const session = await User.db.startSession();
   session.startTransaction();
 
   try {
-    const wfState = await WorkflowState.findOne({
+    const wfState = await _getWfState(
+      WorkflowState,
       transactionId,
       transactionModel,
-    }).session(session);
+      session,
+    );
     if (!wfState)
       throw new ApiError(404, "No active workflow found for this transaction.");
 
@@ -278,27 +359,55 @@ export const processWorkflowAction = async (
       );
 
     if (["approve", "reject", "delegate", "clarify"].includes(action)) {
+      let isAuthorized = false;
       if (wfState.delegatedTo) {
-        if (wfState.delegatedTo.toString() !== userId.toString())
+        isAuthorized = getStrId(wfState.delegatedTo) === userId.toString();
+        if (!isAuthorized)
           throw new ApiError(
             403,
             "This transaction was delegated to another user.",
           );
       } else if (currentStage?.isStatic) {
-        if (currentStage.specificApprover.toString() !== userId.toString())
+        isAuthorized =
+          getStrId(currentStage.specificApprover) === userId.toString();
+        if (!isAuthorized)
           throw new ApiError(
             403,
             "You are not the designated static approver for this stage.",
           );
       } else {
-        if (
-          user.workflowRole.toString() !==
-          currentStage?.stageApproverRole?.toString()
-        )
+        isAuthorized =
+          getStrId(user.activeWorkflowRole) ===
+          getStrId(currentStage?.stageApproverRole);
+        if (!isAuthorized)
           throw new ApiError(
             403,
             "Your Workflow Role does not have permission to act on this stage.",
           );
+      }
+
+      // Check if the role actually has 'approver' or 'admin' type for approval actions
+      if (["approve", "reject", "clarify"].includes(action)) {
+        const roleType = user.activeWorkflowRole?.wfRoleType;
+        if (roleType !== "approver" && roleType !== "admin") {
+          throw new ApiError(
+            403,
+            "Your workflow role is not authorized to Approve or Reject transactions.",
+          );
+        }
+      }
+
+      // Check for delegation rights
+      if (action === "delegate") {
+        if (
+          !user.activeWorkflowRole?.canDelegate &&
+          user.activeWorkflowRole?.wfRoleType !== "admin"
+        ) {
+          throw new ApiError(
+            403,
+            "Your workflow role does not have delegation rights.",
+          );
+        }
       }
     }
 
@@ -323,7 +432,7 @@ export const processWorkflowAction = async (
         for (const mf of currentStage.mandatoryFields) {
           // Check if field is mandatory for the current user's workflow role (if specified)
           const isRoleTargeted = mf.roleId
-            ? mf.roleId.toString() === user.workflowRole.toString()
+            ? mf.roleId.toString() === user.activeWorkflowRole.toString()
             : true;
 
           if (isRoleTargeted) {
@@ -356,7 +465,7 @@ export const processWorkflowAction = async (
           (s) => s.stageNumber === wfState.currentStageNumber,
         );
         if (nextStage) {
-          const { to, cc, bcc } = _extractRecipients(nextStage);
+          const { to, cc, bcc } = await _extractRecipients(nextStage);
           if (to.length) {
             setImmediate(() => {
               sendMappedEmail(
@@ -383,7 +492,7 @@ export const processWorkflowAction = async (
       wfState.status = "rejected";
       logStatus = "reject";
 
-      const { to, cc, bcc } = _extractRecipients(currentStage || {});
+      const { to, cc, bcc } = await _extractRecipients(currentStage || {});
       setImmediate(() => {
         sendMappedEmail(
           "WORKFLOW_REJECTED",
@@ -451,7 +560,7 @@ export const processWorkflowAction = async (
       logStatus = "clarification_provided";
 
       if (currentStage) {
-        const { to, cc, bcc } = _extractRecipients(currentStage);
+        const { to, cc, bcc } = await _extractRecipients(currentStage);
         if (to.length) {
           setImmediate(() => {
             sendMappedEmail("WORKFLOW_CLARIFICATION_PROVIDED", to, emailVars, {
@@ -477,7 +586,7 @@ export const processWorkflowAction = async (
       [
         {
           transactionId,
-          transactionModel,
+          transactionModel: wfState.transactionModel,
           workflowId: workflow._id,
           StageNo: currentStage?.stageNumber || wfState.currentStageNumber,
           StageStatus: logStatus,
@@ -577,8 +686,9 @@ export const getAllWorkflowsService = async (queryParams) => {
     limit: limitNum,
     sort,
     populate: [
-      { path: "initiatorRole", select: "roleName" },
-      { path: "createdBy updatedBy", select: "fullName" },
+      { path: "initiatorRole", select: "description roleCode" },
+      { path: "createdBy", select: "fullName" },
+      { path: "updatedBy", select: "fullName" },
     ],
     select: "-WorkflowStage",
   });
@@ -590,10 +700,14 @@ export const getWorkflowByIdService = async (id) => {
   const { Workflow } = useModels();
   const query = getLookupQuery(id, "workflowCode");
   const workflow = await Workflow.findOne(query)
-    .populate("initiatorRole", "roleName permissions")
-    .populate("WorkflowStage.stageApproverRole", "roleName")
-    .populate("WorkflowStage.specificApprover", "fullName email")
-    .populate("WorkflowStage.mandatoryFields.roleId", "roleName")
+    .populate("initiatorRole", "roleName wfRoleCode description")
+    .populate(
+      "WorkflowStage.stageApproverRole",
+      "roleName wfRoleCode description",
+    )
+    .populate("WorkflowStage.specificApprovers", "fullName email")
+    .populate("WorkflowStage.mandatoryFields.roleId", "roleName wfRoleCode")
+    .populate("moduleContext", "subCode description")
     .populate("createdBy updatedBy", "fullName");
   if (!workflow) throw new ApiError(404, "Workflow not found");
   return workflow;
@@ -638,28 +752,40 @@ export const createWorkflowService = async (data) => {
     throw new ApiError(400, "Each stage must have a unique stage number.");
   }
 
-  // ── Stage-Level Validation ────────────────────────────────────────────────
   for (const stage of WorkflowStage) {
-    if (!stage.stageName)
+    if (!stage.stageName) {
       throw new ApiError(
         400,
-        `Stage ${stage.stageNumber}: stageName is mandatory.`,
+        `Stage ${stage.stageNumber || "undefined"}: stageName is mandatory.`,
       );
-    if (!stage.stageNumber)
-      throw new ApiError(400, "Each stage must have a stageNumber.");
+    }
+    if (!stage.stageNumber) {
+      throw new ApiError(
+        400,
+        `Stage '${stage.stageName}': stageNumber is mandatory.`,
+      );
+    }
 
     // Non-notification stages must have an approver role or specific approver
     if (!stage.isNotificationOnly) {
-      if (!stage.stageApproverRole && !stage.specificApprover) {
+      if (
+        !stage.stageApproverRole &&
+        (!stage.specificApprovers || stage.specificApprovers.length === 0) &&
+        !stage.specificApprover
+      ) {
         throw new ApiError(
           400,
-          `Stage '${stage.stageName}': must have either a stageApproverRole or specificApprover.`,
+          `Stage '${stage.stageName}': must have either a stageApproverRole or specificApprovers.`,
         );
       }
     }
 
     // Static stage must have a specificApprover
-    if (stage.isStatic && !stage.specificApprover) {
+    if (
+      stage.isStatic &&
+      (!stage.specificApprovers || stage.specificApprovers.length === 0) &&
+      !stage.specificApprover
+    ) {
       throw new ApiError(
         400,
         `Stage '${stage.stageName}': static stages must have a specificApprover.`,
@@ -667,8 +793,8 @@ export const createWorkflowService = async (data) => {
     }
 
     // Amount range validation
-    const min = parseFloat(stage.minAmount || 0);
-    const max = parseFloat(stage.maxAmount || 0);
+    const min = parseFloat(stage.minAmount?.toString() || 0);
+    const max = parseFloat(stage.maxAmount?.toString() || 0);
     if (max > 0 && min > max) {
       throw new ApiError(
         400,
@@ -768,24 +894,37 @@ export const updateWorkflowService = async (id, data) => {
 
   // ── Stage-Level Validation ────────────────────────────────────────────────
   for (const stage of WorkflowStage) {
-    if (!stage.stageName)
+    if (!stage.stageName) {
       throw new ApiError(
         400,
-        `Stage ${stage.stageNumber}: stageName is mandatory.`,
+        `Stage ${stage.stageNumber || "undefined"}: stageName is mandatory.`,
       );
-    if (!stage.stageNumber)
-      throw new ApiError(400, "Each stage must have a stageNumber.");
+    }
+    if (!stage.stageNumber) {
+      throw new ApiError(
+        400,
+        `Stage '${stage.stageName}': stageNumber is mandatory.`,
+      );
+    }
 
     if (!stage.isNotificationOnly) {
-      if (!stage.stageApproverRole && !stage.specificApprover) {
+      if (
+        !stage.stageApproverRole &&
+        (!stage.specificApprovers || stage.specificApprovers.length === 0) &&
+        !stage.specificApprover
+      ) {
         throw new ApiError(
           400,
-          `Stage '${stage.stageName}': must have either a stageApproverRole or specificApprover.`,
+          `Stage '${stage.stageName}': must have either a stageApproverRole or specificApprovers.`,
         );
       }
     }
 
-    if (stage.isStatic && !stage.specificApprover) {
+    if (
+      stage.isStatic &&
+      (!stage.specificApprovers || stage.specificApprovers.length === 0) &&
+      !stage.specificApprover
+    ) {
       throw new ApiError(
         400,
         `Stage '${stage.stageName}': static stages must have a specificApprover.`,
@@ -847,7 +986,7 @@ export const updateWorkflowService = async (id, data) => {
   )
     .populate("initiatorRole", "roleName permissions")
     .populate("WorkflowStage.stageApproverRole", "roleName")
-    .populate("WorkflowStage.specificApprover", "fullName email")
+    .populate("WorkflowStage.specificApprovers", "fullName email")
     .populate("createdBy updatedBy", "fullName");
 
   return updatedWorkflow;
@@ -861,7 +1000,7 @@ export const toggleWorkflowStatusService = async (id) => {
   const workflow = await Workflow.findOne(query)
     .populate("initiatorRole", "roleName permissions")
     .populate("WorkflowStage.stageApproverRole", "roleName")
-    .populate("WorkflowStage.specificApprover", "fullName email")
+    .populate("WorkflowStage.specificApprovers", "fullName email")
     .populate("createdBy updatedBy", "fullName");
   if (!workflow) throw new ApiError(404, "Workflow not found");
 
@@ -887,10 +1026,12 @@ export const amendWorkflowService = async (
   session.startTransaction();
 
   try {
-    const wfState = await WorkflowState.findOne({
+    const wfState = await _getWfState(
+      WorkflowState,
       transactionId,
       transactionModel,
-    }).session(session);
+      session,
+    );
     if (!wfState)
       throw new ApiError(404, "No workflow state found for this transaction.");
 
@@ -923,7 +1064,7 @@ export const amendWorkflowService = async (
       [
         {
           transactionId,
-          transactionModel,
+          transactionModel: wfState.transactionModel,
           workflowId: wfState.workflowId,
           StageNo: 0,
           StageStatus: "amend",
@@ -933,6 +1074,265 @@ export const amendWorkflowService = async (
       ],
       { session },
     );
+
+    await session.commitTransaction();
+    return wfState;
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+};
+
+export const getWorkflowStateService = async (
+  transactionId,
+  transactionModel,
+  userId,
+) => {
+  const { WorkflowState, Workflow, User } = useModels();
+
+  try {
+    if (!transactionId || !transactionModel) {
+      return { status: "draft", currentStageName: "Draft", canAction: false };
+    }
+
+    const wfState = await _getWfState(
+      WorkflowState,
+      transactionId,
+      transactionModel,
+    );
+    if (!wfState)
+      return { status: "draft", currentStageName: "Draft", canAction: false };
+
+    const workflow = await Workflow.findById(wfState.workflowId);
+    if (!workflow)
+      return {
+        status: wfState.status,
+        currentStageName: "Unknown",
+        canAction: false,
+      };
+
+    const user = await User.findById(userId).populate("activeWorkflowRole");
+    const currentStage = workflow.WorkflowStage.find(
+      (s) => s.stageNumber === wfState.currentStageNumber,
+    );
+
+    let stageName = currentStage?.stageName || "Unknown Stage";
+    if (wfState.status === "completed") stageName = "Approved";
+    else if (wfState.status === "rejected") stageName = "Rejected";
+    else if (wfState.status === "clarification_requested")
+      stageName = "Clarification Needed";
+
+    // Helper to get string ID
+    const getStrId = (val) => val?._id?.toString() || val?.toString() || null;
+    const userWfRoleId = getStrId(user?.activeWorkflowRole);
+
+    let canAction = false;
+    let canEdit = false;
+    let isMatch = false;
+
+    if (
+      wfState.status === "pending" ||
+      wfState.status === "clarification_requested"
+    ) {
+      if (wfState.delegatedTo) {
+        isMatch = getStrId(wfState.delegatedTo) === userId.toString();
+      } else if (currentStage?.isStatic) {
+        isMatch = getStrId(currentStage.specificApprover) === userId.toString();
+      } else {
+        isMatch = userWfRoleId === getStrId(currentStage?.stageApproverRole);
+      }
+
+      if (isMatch) {
+        const roleType = user?.activeWorkflowRole?.wfRoleType;
+        if (roleType === "approver" || roleType === "admin") {
+          canAction = true;
+          canEdit = true;
+        }
+        if (wfState.status === "clarification_requested") canAction = true;
+      }
+    } else if (["draft", "rejected", "recalled"].includes(wfState.status)) {
+      canEdit = true;
+    }
+
+    // Extract mandatory fields for this stage/role
+    const mandatoryFields =
+      currentStage?.mandatoryFields
+        ?.filter(
+          (f) =>
+            !f.roleId ||
+            f.roleId.toString() === user?.activeWorkflowRole?.toString(),
+        )
+        ?.map((f) => f.fieldName) || [];
+
+    return {
+      status: wfState.status,
+      currentStageNumber: wfState.currentStageNumber,
+      currentStageName: stageName,
+      workflowId: wfState.workflowId,
+      delegatedTo: wfState.delegatedTo,
+      canAction,
+      canApprove: canAction,
+      canReject: canAction,
+      canDelegate: canAction && user?.activeWorkflowRole?.canDelegate === true,
+      canEdit,
+      mandatoryFields,
+    };
+  } catch (err) {
+    console.error("[WorkflowStateService] Error:", err);
+    return { status: "draft", currentStageName: "Error", canAction: false };
+  }
+};
+
+//===========Recall Workflow===========
+
+export const recallWorkflowService = async (
+  transactionId,
+  transactionModel,
+  userId,
+) => {
+  const { WorkflowState, WorkflowLog } = useModels();
+
+  const session = await WorkflowState.db.startSession();
+  session.startTransaction();
+
+  try {
+    const wfState = await _getWfState(
+      WorkflowState,
+      transactionId,
+      transactionModel,
+      session,
+    );
+    if (!wfState)
+      throw new ApiError(404, "No workflow state found for this transaction.");
+
+    if (wfState.status !== "pending") {
+      throw new ApiError(400, "Only pending transactions can be recalled.");
+    }
+
+    // Verify initiator is the one recalling
+    const submitLog = await WorkflowLog.findOne({
+      transactionId,
+      transactionModel,
+      StageStatus: "submit",
+    })
+      .sort({ createdAt: 1 })
+      .session(session);
+
+    if (submitLog && submitLog.userId.toString() !== userId.toString()) {
+      throw new ApiError(403, "Only the initiator can recall the workflow.");
+    }
+
+    // 1. Reset workflow state
+    wfState.status = "recalled";
+    await wfState.save({ session });
+
+    // 2. Sync transaction status back to 'draft/recalled'
+    await syncTransactionStatus(transactionModel, transactionId, "recalled", {
+      session,
+      userId,
+    });
+
+    // 3. Log the recall
+    await WorkflowLog.create(
+      [
+        {
+          transactionId,
+          transactionModel: wfState.transactionModel,
+          workflowId: wfState.workflowId,
+          StageNo: wfState.currentStageNumber,
+          StageStatus: "recalled", // assuming recalled is handled or mapped
+          userId,
+          comments: "Transaction recalled by initiator.",
+        },
+      ],
+      { session },
+    );
+
+    await session.commitTransaction();
+    return wfState;
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+};
+
+//===========Add Ad-Hoc Approver===========
+
+export const addAdHocApproverService = async (
+  transactionId,
+  transactionModel,
+  approverId,
+  userId,
+) => {
+  const { WorkflowState, Workflow, WorkflowLog, User } = useModels();
+
+  const session = await WorkflowState.db.startSession();
+  session.startTransaction();
+
+  try {
+    const wfState = await _getWfState(
+      WorkflowState,
+      transactionId,
+      transactionModel,
+      session,
+    );
+    if (!wfState)
+      throw new ApiError(404, "No workflow state found for this transaction.");
+
+    if (wfState.status !== "pending") {
+      throw new ApiError(
+        400,
+        "Can only add Ad-Hoc approver to pending transactions.",
+      );
+    }
+
+    const workflow = await Workflow.findById(wfState.workflowId).session(
+      session,
+    );
+    if (!workflow)
+      throw new ApiError(404, "Linked Workflow template not found.");
+
+    const newApprover = await User.findById(approverId);
+    if (!newApprover) throw new ApiError(404, "Approver user not found.");
+
+    if (wfState.delegatedTo) {
+      throw new ApiError(
+        400,
+        "This stage is already delegated or has an ad-hoc approver.",
+      );
+    }
+
+    wfState.delegatedTo = approverId;
+    await wfState.save({ session });
+
+    await WorkflowLog.create(
+      [
+        {
+          transactionId,
+          transactionModel: wfState.transactionModel,
+          workflowId: wfState.workflowId,
+          StageNo: wfState.currentStageNumber,
+          StageStatus: "delegate", // Treat ad-hoc as delegation for now
+          userId,
+          comments: `Ad-Hoc approver added: ${newApprover.fullName}`,
+        },
+      ],
+      { session },
+    );
+
+    setImmediate(() => {
+      sendMappedEmail("WORKFLOW_DELEGATED", newApprover.email, {
+        transactionId: transactionId.toString(),
+        transactionModel,
+        delegatedToName: newApprover.fullName,
+        delegatedToEmail: newApprover.email,
+        comments: `You have been added as an Ad-Hoc approver.`,
+      });
+    });
 
     await session.commitTransaction();
     return wfState;

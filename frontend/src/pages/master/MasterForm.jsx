@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Button from "../../components/ui/Button";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { useForm, Controller, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,25 +19,39 @@ import {
   Trash2,
   HelpCircle,
   CheckCircle2,
+  XCircle,
   MoreVertical,
+  Key,
+  ShieldAlert,
+  Eye,
+  Edit,
+  CheckCircle,
+  ChevronDown,
+  UserPlus,
+  RefreshCcw,
 } from "lucide-react";
 import { apiRegistry } from "../../config/apiRegistry";
 import api from "../../services/api";
+import { evaluateCondition } from "../../lib/conditions";
+import { cn } from "../../lib/utils";
 import toast from "react-hot-toast";
+import { hasPermission, getMenuPermissions } from "../../lib/permissions";
 import { useDispatch, useSelector } from "react-redux";
 import {
   setLoading as setGlobalLoading,
   setPageContext,
 } from "../../store/features/uiSlice";
 import AsyncSelect from "../../components/ui/AsyncSelect";
+import SearchableSelect from "../../components/ui/SearchableSelect";
 import CsvDownload from "../../components/ui/CsvDownload";
 import Drawer from "../../components/ui/Drawer";
 import AuditTrail from "../../components/common/AuditTrail";
 import WorkflowTrail from "../../components/common/WorkflowTrail";
+import WorkflowActionDialog from "../../components/common/WorkflowActionDialog";
 import { format } from "date-fns";
+import Skeleton from "../../components/ui/Skeleton";
 
 // Core UI Components
-import { cn } from "../../lib/utils";
 import StatusBadge from "../../components/ui/StatusBadge";
 import { Checkbox } from "../../components/ui/Checkbox";
 import { Switch } from "../../components/ui/Switch";
@@ -67,19 +82,25 @@ import {
   DropdownMenuSeparator,
 } from "../../components/ui/DropdownMenu";
 
+import { useFeatures } from "../../hooks/useFeatures";
+import { useWorkflowState } from "../../hooks/useWorkflowState";
+
 export default function MasterForm() {
+  const { isEnabled } = useFeatures();
   const { module, id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
-  const moduleKey = Object.keys(apiRegistry).find(
-    (key) =>
-      key.toLowerCase() === module?.toLowerCase() ||
-      apiRegistry[key].endpoint.replace(/^\//, "").toLowerCase() ===
-        module?.toLowerCase(),
-  );
+  const moduleKey = apiRegistry
+    ? Object.keys(apiRegistry).find(
+        (key) =>
+          key.toLowerCase() === module?.toLowerCase() ||
+          apiRegistry[key]?.endpoint?.replace(/^\//, "")?.toLowerCase() ===
+            module?.toLowerCase(),
+      )
+    : null;
   const config = moduleKey ? apiRegistry[moduleKey] : null;
   const isEdit = !!id && id !== "new";
   const isEditRoute = location.pathname.endsWith("/edit");
@@ -94,7 +115,37 @@ export default function MasterForm() {
   const [submitting, setSubmitting] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isWfTrailOpen, setIsWfTrailOpen] = useState(false);
+  const [isResetPwdOpen, setIsResetPwdOpen] = useState(false);
+  const [tempPassword, setTempPassword] = useState("");
+  const [resettingPwd, setResettingPwd] = useState(false);
   const [recordData, setRecordData] = useState(null);
+  const [isActionDialogOpen, setIsActionDialogOpen] = useState(false);
+  const [wfComments, setWfComments] = useState("");
+  const [activeAction, setActiveAction] = useState(null);
+  const [isActioning, setIsActioning] = useState(false);
+  const [delegatedToUserId, setDelegatedToUserId] = useState(null);
+
+  const wfModel =
+    config?.moduleName ||
+    (moduleKey ? moduleKey.charAt(0).toUpperCase() + moduleKey.slice(1) : "");
+  const { workflowState, refresh: refreshWf } = useWorkflowState(
+    recordData?._id,
+    wfModel,
+  );
+
+  const looksLikeId = (val) => {
+    if (typeof val !== "string") return false;
+    if (val.includes(" ")) return false;
+    if (val.length < 5) return false;
+    // Hex (MongoID) or UUID or Code (alphanumeric)
+    return (
+      /^[a-f0-9]{24}$/i.test(val) ||
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        val,
+      ) ||
+      /^[A-Z0-9_-]+$/i.test(val)
+    );
+  };
   const [isAmending, setIsAmending] = useState(false);
   const [isConfirmAmendOpen, setIsConfirmAmendOpen] = useState(false);
 
@@ -117,25 +168,56 @@ export default function MasterForm() {
   // Watch for dynamic changes in field dependencies
   const watchAllFields = watch();
 
+  // Special logic for User module role assignments: Sync default selection to main fields
+  useEffect(() => {
+    if (moduleKey === "user" && Array.isArray(watchAllFields.roleAssignments)) {
+      const defaultRA = watchAllFields.roleAssignments.find(
+        (ra) => ra.isDefault,
+      );
+      if (defaultRA) {
+        // Sync userRole if changed
+        if (
+          defaultRA.userRole &&
+          JSON.stringify(defaultRA.userRole) !==
+            JSON.stringify(getValues("userRole"))
+        ) {
+          setValue("userRole", defaultRA.userRole, { shouldDirty: true });
+        }
+        // Sync workflowRole if changed
+        if (
+          defaultRA.workflowRole &&
+          JSON.stringify(defaultRA.workflowRole) !==
+            JSON.stringify(getValues("workflowRole"))
+        ) {
+          setValue("workflowRole", defaultRA.workflowRole, {
+            shouldDirty: true,
+          });
+        }
+      }
+    }
+  }, [watchAllFields.roleAssignments, moduleKey, setValue, getValues]);
+
   const menu = user?.userRole?.menus?.find((m) => {
     const checkId = typeof m.menuId === "object" ? m.menuId?.menuId : m.menuId;
     return checkId === moduleKey || checkId === module;
   });
 
-  const hasEditPermission = menu?.permissions?.some((p) =>
-    ["edit", "all", "submit", "approve"].includes(p.toLowerCase()),
-  );
+  const menuPerms = getMenuPermissions(user, module);
+  const hasEditPermission = hasPermission(menuPerms, "edit");
+  const hasDeletePermission = hasPermission(menuPerms, "delete");
 
-  const status =
-    recordData?.transactionStatus || recordData?.workflowStatus || "draft";
-  const isLocked = [
-    "submitted",
-    "approved",
-    "completed",
-    "pending_approval",
-    "pending",
-  ].includes(status.toLowerCase());
-  const isReadOnly = isViewing || !hasEditPermission || isLocked;
+  const status = recordData?.transactionStatus || recordData?.status || "";
+
+  // A record is locked if it's in a processing state and the workflow doesn't explicitly allow editing
+  const isLockedByWf =
+    [
+      "submitted",
+      "approved",
+      "completed",
+      "pending_approval",
+      "pending",
+    ].includes(status?.toLowerCase()) && !workflowState?.canEdit;
+  const isReadOnly = isViewing || !hasEditPermission || isLockedByWf;
 
   // Redirect if module not found
   useEffect(() => {
@@ -148,25 +230,90 @@ export default function MasterForm() {
   // Ref to programmatically submit the form from header Save button
   const formRef = React.useRef(null);
 
+  const handleSubmitForApproval = async () => {
+    setSubmitting(true);
+    dispatch(setGlobalLoading(true));
+    try {
+      await api.post(`/workflows/initiate`, {
+        transactionId: recordData._id,
+        transactionModel: moduleKey || module,
+        amount: 0,
+      });
+      toast.success("Submitted for approval successfully");
+      refreshWf();
+      fetchRecord();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Submission failed");
+    } finally {
+      setSubmitting(false);
+      dispatch(setGlobalLoading(false));
+    }
+  };
+
+  const handleWorkflowAction = async () => {
+    if (!activeAction) return;
+    setIsActioning(true);
+    dispatch(setGlobalLoading(true));
+    try {
+      const payload = {
+        transactionId: recordData._id,
+        transactionModel: moduleKey || module,
+        action: activeAction,
+        comments: wfComments,
+      };
+
+      if (activeAction === "delegate") {
+        payload.delegatedToUserId = delegatedToUserId;
+      }
+
+      await api.post(`/workflows/action`, payload);
+      toast.success(
+        `Transaction ${activeAction?.replace("_", " ")}d successfully`,
+      );
+      setIsActionDialogOpen(false);
+      setWfComments("");
+      setDelegatedToUserId(null);
+      refreshWf();
+      fetchRecord();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Action failed");
+    } finally {
+      setIsActioning(false);
+      dispatch(setGlobalLoading(false));
+    }
+  };
+
   // Set Page Context Title & Actions
   useEffect(() => {
     if (config) {
-      const mode = id === "new" ? "New" : isViewing ? "View" : "Edit";
-
       const headerActions = [];
+      // canEdit from workflow overrides menu-level permission (e.g. for Approvers with mandatory fields)
+      const canEditThisRecord =
+        workflowState?.canEdit ||
+        (hasEditPermission &&
+          (!status ||
+            ["draft", "rejected", "recalled"].includes(status?.toLowerCase())));
 
-      if (isEdit && isViewing && hasEditPermission && !isLocked) {
+      if (isEdit && isViewing && canEditThisRecord) {
         headerActions.push({
           label: "Edit",
-          onClick: () => navigate(`/${module}/${id}/edit`),
+          onClick: () => setIsViewing(false),
           variant: "primary",
+          icon: "edit",
         });
       }
 
-      if (!isViewing && !isReadOnly) {
+      if (!isViewing) {
         headerActions.push({
           label: "Cancel",
-          onClick: () => (isEdit ? setIsViewing(true) : navigate(`/${module}`)),
+          onClick: () => {
+            if (isEdit) {
+              setIsViewing(true);
+              fetchRecord();
+            } else {
+              navigate(`/${module}`);
+            }
+          },
           variant: "secondary",
         });
         headerActions.push({
@@ -179,9 +326,7 @@ export default function MasterForm() {
 
       dispatch(
         setPageContext({
-          title: isEdit
-            ? `${isViewing ? "View" : "Edit"} ${config.singularTitle || config.title}`
-            : `Add New ${config.singularTitle || config.title}`,
+          title: `${isViewing ? "View" : isEdit ? "Edit" : "New"} ${config.singularTitle || config.title}`,
           actions: headerActions,
         }),
       );
@@ -193,8 +338,11 @@ export default function MasterForm() {
     isViewing,
     dispatch,
     hasEditPermission,
-    isLocked,
-    isReadOnly,
+    status,
+    recordData,
+    workflowState,
+    isEdit,
+    navigate,
   ]);
 
   const fetchRecord = async () => {
@@ -210,11 +358,25 @@ export default function MasterForm() {
 
         // ── Audit fields → display strings ──────────────────────────────────
         if (data.createdBy && typeof data.createdBy === "object")
-          formData.createdBy = data.createdBy.fullName || data.createdBy._id;
+          formData.createdBy =
+            data.createdBy.fullName ||
+            data.createdBy.email ||
+            data.createdBy._id;
         if (data.updatedBy && typeof data.updatedBy === "object")
-          formData.updatedBy = data.updatedBy.fullName || data.updatedBy._id;
+          formData.updatedBy =
+            data.updatedBy.fullName ||
+            data.updatedBy.email ||
+            data.updatedBy._id;
+        if (data.performedBy && typeof data.performedBy === "object")
+          formData.performedBy =
+            data.performedBy.fullName ||
+            data.performedBy.email ||
+            data.performedBy._id;
         if (data.approvedBy && typeof data.approvedBy === "object")
-          formData.approvedBy = data.approvedBy.fullName || data.approvedBy._id;
+          formData.approvedBy =
+            data.approvedBy.fullName ||
+            data.approvedBy.email ||
+            data.approvedBy._id;
 
         if (data.createdAt)
           formData.createdAt = format(
@@ -242,38 +404,31 @@ export default function MasterForm() {
         );
 
         allFields.forEach((field) => {
+          const value = formData[field.name];
           if (
             field.type === "asyncSelect" &&
-            formData[field.name] &&
-            typeof formData[field.name] === "object"
+            value &&
+            typeof value === "object" &&
+            !Array.isArray(value)
           ) {
-            formData[field.name] = formData[field.name]._id;
+            // Keep the object so AsyncSelect can show the label immediately
+            formData[field.name] = value;
+          } else if (
+            field.type === "asyncSelect" &&
+            typeof value === "string"
+          ) {
+            // If it's a string ID, keep it
+            formData[field.name] = value;
+          } else if (field.type === "date" && value) {
+            const d = new Date(value);
+            if (isFinite(d)) {
+              formData[field.name] = format(d, "yyyy-MM-dd");
+            }
           }
         });
 
-        // ── Safe flattening — only unexpected remaining populated objects ────
-        const auditFields = new Set([
-          "createdBy",
-          "updatedBy",
-          "approvedBy",
-          "createdAt",
-          "updatedAt",
-          "approvedDate",
-        ]);
-
-        Object.keys(formData).forEach((key) => {
-          if (auditFields.has(key)) return; // already handled
-          if (asyncSelectFieldNames.has(key)) return; // already extracted _id
-
-          const val = formData[key];
-
-          if (Array.isArray(val)) return; // leave arrays untouched
-          if (!val || typeof val !== "object" || val instanceof Date) return;
-
-          if (val._id) formData[key] = val._id; // flatten remaining refs
-          // no else — leave unknown objects as-is
-        });
-
+        // ── Preserve objects for AsyncSelect — no manual ID stripping needed ────
+        // The global api.js request interceptor will handle sanitization on save.
         reset(formData);
       } catch (err) {
         toast.error(err.message || "Failed to fetch record data");
@@ -302,6 +457,7 @@ export default function MasterForm() {
       });
       toast.success("Transaction amended successfully. You can now edit.");
       fetchRecord();
+      refreshWf();
       setIsViewing(false);
     } catch (err) {
       toast.error(err.response?.data?.message || "Amendment failed");
@@ -310,10 +466,70 @@ export default function MasterForm() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!tempPassword) {
+      toast.error("Please enter a temporary password");
+      return;
+    }
+    setResettingPwd(true);
+    try {
+      await api.post("/users/reset-password", {
+        userId: recordData._id,
+        tempPassword,
+      });
+      toast.success(
+        "User password has been reset successfully. User will be forced to change it on next login.",
+      );
+      setIsResetPwdOpen(false);
+      setTempPassword("");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Reset failed");
+    } finally {
+      setResettingPwd(false);
+    }
+  };
+
   const onSubmit = async (values) => {
+    // Dynamic Mandatory Fields Check (Stage-specific)
+    const missingFields = (workflowState?.mandatoryFields || []).filter((f) => {
+      const val = values[f];
+      return val === undefined || val === null || val === "";
+    });
+
+    if (missingFields.length > 0) {
+      const allFields = config.formSections
+        ? config.formSections.flatMap((s) => s.fields)
+        : config.formFields || [];
+      const labels = missingFields.map(
+        (f) => allFields.find((af) => af.name === f)?.label || f,
+      );
+      toast.error(`Workflow Mandatory Fields Missing: ${labels.join(", ")}`);
+      return;
+    }
+
     setSubmitting(true);
     dispatch(setGlobalLoading(true));
     try {
+      const flatten = (obj) => {
+        if (!obj || typeof obj !== "object" || obj instanceof Date) {
+          return obj;
+        }
+
+        if (Array.isArray(obj)) return obj.map(flatten);
+
+        // If it's a lookup object (from AsyncSelect or API), extract its ID
+        if (obj._id || obj.value) {
+          return obj._id || obj.value;
+        }
+
+        // Recursively handle nested objects
+        const newObj = {};
+        Object.keys(obj).forEach((key) => {
+          newObj[key] = flatten(obj[key]);
+        });
+        return newObj;
+      };
+
       const {
         createdBy,
         updatedBy,
@@ -321,14 +537,37 @@ export default function MasterForm() {
         updatedAt,
         approvedBy,
         approvedDate,
-        ...payload
+        _id,
+        __v,
+        ...rest
       } = values;
+      const payload = {};
+      Object.keys(rest).forEach((key) => {
+        payload[key] = flatten(rest[key]);
+      });
+
+      // Avoid sending empty password on edit (preserves existing password)
+      if (isEdit && payload.password === "") {
+        delete payload.password;
+      }
+
+      // DEBUG: Log the final payload to console for inspection
+      console.log(
+        "Final Submission Payload:",
+        JSON.stringify(payload, null, 2),
+      );
+      window.last_payload = payload;
 
       if (isEdit) {
-        await api.patch(`${config.endpoint}/${id}`, payload);
+        // Use the URL param `id` (domain code e.g. cityCode, deptCode) as the patch identifier.
+        // Fall back to the MongoDB _id only when the URL param is the _id itself.
+        const patchId = id || recordData?._id;
+        await api.patch(`${config.endpoint}/${patchId}`, payload);
         toast.success(
           `${config.singularTitle || config.title} updated successfully`,
         );
+        setIsViewing(true);
+        fetchRecord();
         navigate(`/${module}/${id}`, { replace: true });
       } else {
         const res = await api.post(config.endpoint, payload);
@@ -336,10 +575,19 @@ export default function MasterForm() {
           `New ${config.singularTitle || config.title} created successfully`,
         );
         const newRecord = res.data.data;
-        const navId = newRecord[config.displayIdField] || newRecord._id;
+        let navId = newRecord[config.displayIdField] || newRecord._id;
+        if (String(navId).includes("undefined")) {
+          navId = newRecord._id;
+        }
         navigate(`/${module}/${navId}`);
       }
     } catch (err) {
+      console.error("FULL_SUBMISSION_ERROR:", err);
+      if (err.response) {
+        console.error("ERROR_RESPONSE_DATA:", err.response.data);
+        console.error("ERROR_RESPONSE_STATUS:", err.response.status);
+        console.error("ERROR_RESPONSE_HEADERS:", err.response.headers);
+      }
       const message =
         err.response?.data?.message || err.message || "Submission failed";
       toast.error(message);
@@ -356,6 +604,7 @@ export default function MasterForm() {
         field={field}
         control={control}
         register={register}
+        setValue={setValue}
         errors={errors}
         disabled={isReadOnly}
       />
@@ -363,11 +612,40 @@ export default function MasterForm() {
   };
 
   const renderField = (field) => {
+    // ── Admin-Only Gating ────────────────────────────────────────────────
+    if (field.isAdminOnly && !user?.isSuperAdmin) {
+      return null;
+    }
+
+    // Conditional Visibility Check
+    if (field.showIf && !evaluateCondition(field.showIf, watchAllFields)) {
+      return null;
+    }
+
     if (field.type === "array") return renderArrayField(field);
-    const fieldDisabled =
+
+    // Feature Flag Override for Auto-ID
+    const autoIdFeature = config.featureFlags?.autoId;
+    const isAutoIdEnabled = autoIdFeature ? isEnabled(autoIdFeature) : false; // Default to false (manual) if no flag mapped
+
+    let fieldDisabled =
       isReadOnly ||
       field.disabled ||
       (isEdit ? field.disabledOnEdit : field.disabledOnCreate);
+    let placeholder =
+      field.placeholder || `Enter ${field.label.toLowerCase()}...`;
+    let isRequired =
+      (field.required ||
+        workflowState?.mandatoryFields?.includes(field.name)) &&
+      !fieldDisabled;
+
+    if (field.name === config.displayIdField && !isEdit) {
+      fieldDisabled = isAutoIdEnabled;
+      placeholder = isAutoIdEnabled
+        ? "Auto-generated"
+        : `Enter ${field.label}...`;
+      if (!isAutoIdEnabled) isRequired = true;
+    }
 
     // Email Template Special Handling: Show preview alongside the body
     if (module === "emailTemplate" && field.name === "htmlBody") {
@@ -375,7 +653,7 @@ export default function MasterForm() {
         <div key={field.name} className="md:col-span-2 lg:col-span-3 space-y-4">
           <label className="text-xs text-slate-500 font-bold uppercase tracking-wide">
             {field.label}
-            {field.required && <span className="text-red-500 ml-1">*</span>}
+            {isRequired && <span className="text-red-500 ml-1">*</span>}
           </label>
           <div className="flex gap-4 h-[450px]">
             <div className="flex-1">
@@ -388,7 +666,7 @@ export default function MasterForm() {
             </div>
             <div className="flex-1 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 relative overflow-hidden flex flex-col">
               <div className="bg-white border-b border-slate-100 px-4 py-2 flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                <span className="text-sm font-medium text-slate-500">
                   Live Preview
                 </span>
               </div>
@@ -411,7 +689,7 @@ export default function MasterForm() {
         key={field.name}
         label={field.label}
         help={field.help}
-        required={field.required}
+        required={isRequired}
         error={errors[field.name]}
         className={
           field.type === "textarea" || field.multiple
@@ -430,8 +708,22 @@ export default function MasterForm() {
                 value={value}
                 onChange={onChange}
                 disabled={fieldDisabled}
-                placeholder={`Select ${field.label.toLowerCase()}...`}
+                placeholder={placeholder}
                 error={errors[field.name]}
+              />
+            )}
+          />
+        ) : field.type === "searchableSelect" ? (
+          <Controller
+            name={field.name}
+            control={control}
+            render={({ field: { value, onChange } }) => (
+              <SearchableSelect
+                options={field.options}
+                value={value}
+                onChange={onChange}
+                disabled={fieldDisabled}
+                placeholder={placeholder}
               />
             )}
           />
@@ -483,7 +775,7 @@ export default function MasterForm() {
             <select
               {...register(field.name)}
               disabled={fieldDisabled}
-              className={`flex h-11 w-full rounded-xl border bg-slate-50/50 px-4 py-2 text-sm transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60 ${
+              className={`flex h-11 w-full rounded-xl border bg-slate-50/50 px-4 py-2 text-sm transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 ${
                 errors[field.name]
                   ? "border-red-400"
                   : "border-slate-200 focus:border-indigo-400"
@@ -519,9 +811,9 @@ export default function MasterForm() {
         ) : field.type === "textarea" ? (
           <textarea
             rows={3}
-            placeholder={`Enter ${field.label.toLowerCase()}...`}
+            placeholder={placeholder}
             disabled={fieldDisabled}
-            {...register(field.name)}
+            {...register(field.name, { required: isRequired })}
             className={`flex w-full rounded-xl border bg-slate-50/50 px-4 py-2 text-sm transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60 ${
               errors[field.name]
                 ? "border-red-400"
@@ -530,26 +822,68 @@ export default function MasterForm() {
           />
         ) : (
           <input
-            type={field.type}
+            type={field.type || "text"}
             min={field.type === "number" ? (field.min ?? 0) : undefined}
-            placeholder={`Enter ${field.label.toLowerCase()}...`}
+            placeholder={placeholder}
             disabled={fieldDisabled}
-            {...register(field.name)}
-            className={`flex h-11 w-full rounded-xl border bg-slate-50/50 px-4 py-2 text-sm transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60 ${
+            {...register(field.name, {
+              required: isRequired,
+              onChange: (e) => {
+                if (field.name === config.displayIdField) {
+                  const upper = e.target.value.toUpperCase();
+                  e.target.value = upper;
+                  setValue(field.name, upper);
+                }
+              },
+            })}
+            className={cn(
+              "flex h-11 w-full rounded-xl border bg-slate-50/50 px-4 py-2 text-sm transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60",
+              field.name === config.displayIdField &&
+                "uppercase font-bold tracking-wider",
               errors[field.name]
                 ? "border-red-400"
-                : "border-slate-200 focus:border-indigo-400"
-            }`}
+                : "border-slate-200 focus:border-indigo-400",
+            )}
           />
         )}
       </FormField>
     );
   };
 
-  if (loading || !config) return null;
+  if (!config) return null;
+
+  if (loading) {
+    return (
+      <div className="p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <div className="flex gap-3">
+            <Skeleton className="h-10 w-24 rounded-xl" />
+            <Skeleton className="h-10 w-24 rounded-xl" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div
+              key={i}
+              className="space-y-3 p-6 bg-white border border-slate-50 rounded-[32px]"
+            >
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-10 w-full rounded-2xl" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const displayIdField = config.displayIdField;
-  const displayIdValue = recordData?.[displayIdField];
+  // Prioritize recordCode for Audit Logs or the configured displayIdField
+  const displayIdValue = recordData?.recordCode || recordData?.[displayIdField];
+
   const formTitle = isEdit
     ? displayIdValue
       ? `${config.singularTitle || config.title}: ${displayIdValue}`
@@ -569,7 +903,7 @@ export default function MasterForm() {
         formTitle={formTitle}
         recordData={recordData}
         hasEditPermission={hasEditPermission}
-        isLocked={isLocked}
+        isLocked={isLockedByWf}
         status={status}
         isAmending={isAmending}
         isConfirmAmendOpen={isConfirmAmendOpen}
@@ -593,6 +927,27 @@ export default function MasterForm() {
         renderField={renderField}
         useSections={useSections}
         getValues={getValues}
+        isEnabled={isEnabled}
+        watch={watch}
+        workflowState={workflowState}
+        isResetPwdOpen={isResetPwdOpen}
+        setIsResetPwdOpen={setIsResetPwdOpen}
+        tempPassword={tempPassword}
+        setTempPassword={setTempPassword}
+        resettingPwd={resettingPwd}
+        handleResetPassword={handleResetPassword}
+        moduleKey={moduleKey}
+        isActionDialogOpen={isActionDialogOpen}
+        setIsActionDialogOpen={setIsActionDialogOpen}
+        activeAction={activeAction}
+        setActiveAction={setActiveAction}
+        wfComments={wfComments}
+        setWfComments={setWfComments}
+        isActioning={isActioning}
+        handleWorkflowAction={handleWorkflowAction}
+        handleSubmitForApproval={handleSubmitForApproval}
+        delegatedToUserId={delegatedToUserId}
+        setDelegatedToUserId={setDelegatedToUserId}
       />
     </FormPage>
   );
@@ -623,61 +978,88 @@ function MasterFormInner({
   submitting,
   isDirty,
   isReadOnly,
+  watch,
   module,
   id,
   navigate,
   renderField,
   useSections,
   getValues,
+  isEnabled,
+  workflowState,
+  isResetPwdOpen,
+  setIsResetPwdOpen,
+  tempPassword,
+  setTempPassword,
+  resettingPwd,
+  handleResetPassword,
+  moduleKey,
+  isActionDialogOpen,
+  setIsActionDialogOpen,
+  activeAction,
+  setActiveAction,
+  wfComments,
+  setWfComments,
+  isActioning,
+  handleWorkflowAction,
+  handleSubmitForApproval,
+  delegatedToUserId,
+  setDelegatedToUserId,
 }) {
   const { expandedIds, setExpandedIds } = useFormContext();
+  const mode = id === "new" ? "NEW" : isViewing ? "VIEW" : "EDIT";
+  const entityTitle = config.singularTitle || config.title;
+  const displayIdValue = recordData?.[config.displayIdField];
 
   return (
     <>
       <FormHeader
-        title={formTitle}
+        mode={mode}
+        title={
+          displayIdValue ? (
+            <div className="flex items-center gap-2">
+              {entityTitle}{" "}
+              <code className="text-[0.7em] font-mono font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-lg border border-indigo-100">
+                {displayIdValue}
+              </code>
+            </div>
+          ) : (
+            entityTitle
+          )
+        }
         subtitle={
-          isEdit && recordData?.transactionId
-            ? `Record ID: ${recordData.transactionId}`
-            : `Create a new ${config.singularTitle || config.title}`
+          isEdit && (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
+                  Status:
+                </span>
+                <StatusBadge status={status || "Draft"} />
+              </div>
+
+              {config.featureFlags?.workflow &&
+                isEnabled(config.featureFlags.workflow) &&
+                workflowState?.currentStageName && (
+                  <div className="flex items-center gap-2 border-l border-slate-200 pl-6">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
+                      Stage:
+                    </span>
+                    <StatusBadge status={workflowState.currentStageName} />
+                  </div>
+                )}
+            </div>
+          )
         }
         breadcrumbs={[config.title, isEdit ? "Update" : "New"]}
         onBack={() => navigate(`/${module}`)}
+        backTo={`/${module}`}
       >
-        {isEdit &&
-          isViewing &&
-          recordData?.workflowStatus?.toLowerCase() === "approved" &&
-          hasEditPermission && (
-            <button
-              onClick={() => setIsConfirmAmendOpen(true)}
-              disabled={isAmending}
-              className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all"
-            >
-              {isAmending ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <RotateCcw className="w-4 h-4" />
-              )}
-              Amend
-            </button>
-          )}
-
-        {isEdit && isViewing && hasEditPermission && !isLocked && (
-          <button
-            onClick={() => navigate(`/${module}/${id}/edit`)}
-            className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all"
-          >
-            <Edit2 className="w-4 h-4" />
-            Edit
-          </button>
-        )}
-
         {isEdit && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none">
+              <Button variant="outline" className="w-11 px-0">
                 <MoreVertical className="h-4 w-4" />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem
@@ -687,13 +1069,24 @@ function MasterFormInner({
                 <History className="mr-2 h-4 w-4 text-slate-500" />
                 Audit History
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setIsWfTrailOpen(true)}
-                className="cursor-pointer"
-              >
-                <Send className="mr-2 h-4 w-4 text-slate-500" />
-                Workflow Trail
-              </DropdownMenuItem>
+              {isEnabled(config.featureFlags?.workflow) && (
+                <DropdownMenuItem
+                  onClick={() => setIsWfTrailOpen(true)}
+                  className="cursor-pointer"
+                >
+                  <Send className="mr-2 h-4 w-4 text-slate-500" />
+                  Workflow Trail
+                </DropdownMenuItem>
+              )}
+              {moduleKey === "user" && (
+                <DropdownMenuItem
+                  onClick={() => setIsResetPwdOpen(true)}
+                  className="cursor-pointer text-amber-600"
+                >
+                  <Key className="mr-2 h-4 w-4" />
+                  Reset User Password
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <CsvDownload
                 data={[getValues()]}
@@ -732,6 +1125,70 @@ function MasterFormInner({
         </AlertDialog>
       )}
 
+      {moduleKey === "user" && (
+        <AlertDialog open={isResetPwdOpen} onOpenChange={setIsResetPwdOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-amber-500" />
+                Administrative Password Reset
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                You are about to reset the password for{" "}
+                <span className="font-bold text-slate-900">
+                  {recordData?.fullName}
+                </span>
+                . The user will be required to change this temporary password
+                immediately upon their next login.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4 space-y-3">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
+                Set Temporary Password
+              </label>
+              <input
+                type="text"
+                value={tempPassword}
+                onChange={(e) => setTempPassword(e.target.value)}
+                placeholder="e.g. Temp123!"
+                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/10 outline-none transition-all font-mono"
+                autoFocus
+              />
+              <p className="text-[10px] text-slate-400 italic">
+                Provide this password to the user via a secure channel.
+              </p>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setTempPassword("")}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleResetPassword();
+                }}
+                disabled={!tempPassword || resettingPwd}
+                className="bg-amber-600 hover:bg-amber-700"
+              >
+                {resettingPwd ? "Resetting..." : "Reset & Enforce Change"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      <WorkflowActionDialog
+        isOpen={isActionDialogOpen}
+        onClose={setIsActionDialogOpen}
+        action={activeAction}
+        comments={wfComments}
+        setComments={setWfComments}
+        onConfirm={handleWorkflowAction}
+        isLoading={isActioning}
+        delegatedToUserId={delegatedToUserId}
+        setDelegatedToUserId={setDelegatedToUserId}
+      />
+
       <form onSubmit={handleSubmit(onSubmit)}>
         <Accordion
           type="multiple"
@@ -768,17 +1225,134 @@ function MasterFormInner({
         <FormActionBar
           isDirty={isDirty}
           isSubmitting={submitting}
-          onCancel={() =>
-            isViewing
-              ? navigate(`/${module}`)
-              : isEdit
-                ? setIsViewing(true)
-                : navigate(`/${module}`)
-          }
-          submitLabel={isEdit ? "Update Record" : "Create Record"}
+          onCancel={() => navigate(`/${module}`)}
+          submitLabel={isEdit ? "Save as Draft" : "Create Record"}
           onSubmit={isReadOnly ? null : handleSubmit(onSubmit)}
-          cancelLabel={isReadOnly ? "Return to List" : "Cancel Changes"}
-        />
+          cancelLabel="Return to List"
+        >
+          <div className="flex items-center gap-2 mr-4">
+            {config.featureFlags?.workflow &&
+              isEnabled(config.featureFlags.workflow) &&
+              isEdit &&
+              isViewing &&
+              (!status ||
+                ["draft", "rejected", "recalled"].includes(
+                  status?.toLowerCase(),
+                )) && (
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="bg-amber-600 hover:bg-amber-700 border-none"
+                  onClick={handleSubmitForApproval}
+                  size="sm"
+                  leftIcon={<Send className="w-4 h-4" />}
+                >
+                  Submit for Approval
+                </Button>
+              )}
+
+            {isViewing && (
+              <>
+                {workflowState?.canApprove && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    className="bg-emerald-600 hover:bg-emerald-700 border-none"
+                    onClick={() => {
+                      setActiveAction("approve");
+                      setIsActionDialogOpen(true);
+                    }}
+                    size="sm"
+                    leftIcon={<CheckCircle className="w-4 h-4" />}
+                  >
+                    Approve
+                  </Button>
+                )}
+                {workflowState?.canReject && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                    onClick={() => {
+                      setActiveAction("reject");
+                      setIsActionDialogOpen(true);
+                    }}
+                    size="sm"
+                    leftIcon={<XCircle className="w-4 h-4" />}
+                  >
+                    Reject
+                  </Button>
+                )}
+
+                {(workflowState?.canAction || workflowState?.canDelegate) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        Workflow Actions
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      {workflowState?.canAction && (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setActiveAction("clarify");
+                            setIsActionDialogOpen(true);
+                          }}
+                        >
+                          <HelpCircle className="w-4 h-4 mr-2 text-amber-500" />
+                          Request Clarification
+                        </DropdownMenuItem>
+                      )}
+                      {workflowState?.canDelegate && (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setActiveAction("delegate");
+                            setIsActionDialogOpen(true);
+                          }}
+                        >
+                          <UserPlus className="w-4 h-4 mr-2 text-indigo-500" />
+                          Delegate Transaction
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </>
+            )}
+
+            {workflowState?.status === "clarification_requested" &&
+              isViewing && (
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="bg-indigo-600 hover:bg-indigo-700 border-none"
+                  onClick={() => {
+                    setActiveAction("clarification_provided");
+                    setIsActionDialogOpen(true);
+                  }}
+                  size="sm"
+                  leftIcon={<RefreshCcw className="w-4 h-4" />}
+                >
+                  Provide Clarification
+                </Button>
+              )}
+
+            {isViewing &&
+              ["approved", "rejected"].includes(status?.toLowerCase()) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                  onClick={() => setIsConfirmAmendOpen(true)}
+                  size="sm"
+                  leftIcon={<Edit className="w-4 h-4" />}
+                >
+                  Amend Transaction
+                </Button>
+              )}
+          </div>
+        </FormActionBar>
       </form>
 
       <Drawer
@@ -787,10 +1361,7 @@ function MasterFormInner({
         title="Audit History"
         width="md"
       >
-        <AuditTrail
-          recordId={recordData?._id}
-          collectionName={module?.toLowerCase()}
-        />
+        <AuditTrail recordId={recordData?._id} collectionName={moduleKey} />
       </Drawer>
 
       <Drawer
@@ -801,14 +1372,21 @@ function MasterFormInner({
       >
         <WorkflowTrail
           transactionId={recordData?._id}
-          transactionModel={module}
+          transactionModel={moduleKey}
         />
       </Drawer>
     </>
   );
 }
 
-function ArrayFieldEditor({ field, control, register, errors, disabled }) {
+function ArrayFieldEditor({
+  field,
+  control,
+  register,
+  setValue,
+  errors,
+  disabled,
+}) {
   const { fields, append, remove } = useFieldArray({
     control,
     name: field.name,
@@ -821,13 +1399,15 @@ function ArrayFieldEditor({ field, control, register, errors, disabled }) {
           {field.label}
         </label>
         {!disabled && (
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={() => append({})}
-            className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700 transition-colors"
+            leftIcon={<PlusIcon size={14} />}
+            className="text-[10px] font-black uppercase text-indigo-600 hover:text-indigo-700"
           >
-            <PlusIcon size={14} /> Add {field.label.singular || "Item"}
-          </button>
+            Add {field.label.singular || "Item"}
+          </Button>
         )}
       </div>
 
@@ -846,13 +1426,14 @@ function ArrayFieldEditor({ field, control, register, errors, disabled }) {
             className="group relative bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all"
           >
             {!disabled && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="xs"
                 onClick={() => remove(index)}
-                className="absolute -top-2 -right-2 p-1.5 bg-white border border-red-100 text-red-500 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50"
+                className="absolute -top-2 -right-2 w-7 h-7 bg-white border border-red-100 text-red-500 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50"
               >
                 <Trash2 size={12} />
-              </button>
+              </Button>
             )}
 
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -948,7 +1529,20 @@ function ArrayFieldEditor({ field, control, register, errors, disabled }) {
                         render={({ field: { value, onChange } }) => (
                           <Switch
                             checked={value}
-                            onCheckedChange={onChange}
+                            onCheckedChange={(checked) => {
+                              onChange(checked);
+                              // If this is an 'isDefault' checkbox, uncheck all others in the array
+                              if (checked && subField.name === "isDefault") {
+                                fields.forEach((_, i) => {
+                                  if (i !== index) {
+                                    setValue(
+                                      `${field.name}.${i}.isDefault`,
+                                      false,
+                                    );
+                                  }
+                                });
+                              }
+                            }}
                             disabled={disabled}
                             className="scale-75 origin-left"
                           />
@@ -974,7 +1568,7 @@ function ArrayFieldEditor({ field, control, register, errors, disabled }) {
                   )}
 
                   {errors?.[field.name]?.[index]?.[subField.name] && (
-                    <span className="text-[10px] text-red-500 font-bold">
+                    <span className="text-[10px] text-red-500 font-bold tracking-[0.1em] [word-spacing:0.05em]">
                       {errors[field.name][index][subField.name].message}
                     </span>
                   )}

@@ -7,22 +7,18 @@ import { refreshAccessTokenService } from "../services/auth.service.js";
 
 const verifyJWT = asyncHandler(async (req, res, next) => {
   // Token from cookies or Authorization header
-  // VERBOSE LOGGING FOR DIAGNOSTICS
-  console.log(`[AuthMW] Request: ${req.method} ${req.originalUrl}`);
-
   // Explicitly bypass verification for public auth routes
   const publicPaths = ["/api/v1/users/login", "/api/v1/users/refresh-token"];
-  const isPublic = publicPaths.some((path) => req.originalUrl === path);
+  const currentPath = req.originalUrl.split("?")[0];
+  const isPublic = publicPaths.some((path) => currentPath === path);
 
   if (isPublic) {
-    console.log(`[AuthMW] Bypassing auth for public route: ${req.originalUrl}`);
     return next();
   }
+
   const accessToken =
     req.cookies?.accessToken ||
     req.header("Authorization")?.replace("Bearer ", "");
-  console.log("Cookies:", req.cookies);
-  console.log("Authorization:", req.header("Authorization"));
   if (!accessToken) {
     throw new ApiError(
       401,

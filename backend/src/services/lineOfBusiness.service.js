@@ -25,7 +25,7 @@ const getLOBsService = async (query) => {
   );
 
   const { docs, ...pagination } = lobs;
-  return { data: docs, pagination };
+  return { docs, ...pagination };
 };
 
 const getLOBByIdService = async (id) => {

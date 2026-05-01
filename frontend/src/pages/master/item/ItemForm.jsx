@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useFeatures } from "../../../hooks/useFeatures";
+import { useWorkflowState } from "../../../hooks/useWorkflowState";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -9,6 +11,15 @@ import {
   History,
   Send,
   MoreVertical,
+  CheckCircle,
+  XCircle,
+  HelpCircle,
+  UserPlus,
+  RefreshCcw,
+  Edit,
+  Eye,
+  Save,
+  ChevronDown,
 } from "lucide-react";
 
 import { apiRegistry } from "../../../config/apiRegistry";
@@ -20,14 +31,17 @@ import {
   setPageContext,
 } from "../../../store/features/uiSlice";
 import AsyncSelect from "../../../components/ui/AsyncSelect";
+import SearchableSelect from "../../../components/ui/SearchableSelect";
 import CsvDownload from "../../../components/ui/CsvDownload";
 
 import Drawer from "../../../components/ui/Drawer";
 import AuditTrail from "../../../components/common/AuditTrail";
 import WorkflowTrail from "../../../components/common/WorkflowTrail";
+import WorkflowActionDialog from "../../../components/common/WorkflowActionDialog";
 import { format } from "date-fns";
 import { cn } from "../../../lib/utils";
 import { Switch } from "../../../components/ui/Switch";
+import Button from "../../../components/ui/Button";
 
 // Unified Form Architecture
 import FormPage from "../../../components/form/FormPage";
@@ -44,23 +58,43 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "../../../components/ui/DropdownMenu";
+import StatusBadge from "../../../components/ui/StatusBadge";
 
 export default function ItemForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
   const config = apiRegistry.item;
   const isEdit = !!id && id !== "new";
-  const [isViewing, setIsViewing] = useState(isEdit);
+  const isEditRoute = location.pathname.endsWith("/edit");
+  const [isViewing, setIsViewing] = useState(isEdit && !isEditRoute);
+
+  // Sync viewing mode with route changes
+  useEffect(() => {
+    setIsViewing(isEdit && !isEditRoute);
+  }, [isEdit, isEditRoute]);
 
   const [loading, setLoading] = useState(isEdit);
   const [submitting, setSubmitting] = useState(false);
-  const [features, setFeatures] = useState({});
+  const { isEnabled } = useFeatures();
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isWfTrailOpen, setIsWfTrailOpen] = useState(false);
   const [itemData, setItemData] = useState(null);
+  const [isActionDialogOpen, setIsActionDialogOpen] = useState(false);
+  const [activeAction, setActiveAction] = useState(null);
+  const [wfComments, setWfComments] = useState("");
+  const [isActioning, setIsActioning] = useState(false);
+  const [isAmending, setIsAmending] = useState(false);
+  const [isConfirmAmendOpen, setIsConfirmAmendOpen] = useState(false);
+  const [delegatedToUserId, setDelegatedToUserId] = useState(null);
+
+  const { workflowState, refresh: refreshWf } = useWorkflowState(
+    itemData?._id,
+    "Item",
+  );
 
   const {
     register,
@@ -68,6 +102,7 @@ export default function ItemForm() {
     control,
     getValues,
     setValue,
+    watch,
     reset,
     formState: { errors, isDirty },
   } = useForm({
@@ -75,116 +110,142 @@ export default function ItemForm() {
     defaultValues: { isActive: true, canBeFulfilled: true },
   });
 
-  // Fetch Features
+  // Determine read-only based on permissions and component state
+  const menu = user?.userRole?.menus?.find((m) => {
+    const checkId = typeof m.menuId === "object" ? m.menuId?.menuId : m.menuId;
+    return checkId?.toLowerCase() === "item";
+  });
+  const hasEditPermission = menu?.permissions?.some((p) =>
+    ["edit", "all"].includes(p.toLowerCase()),
+  );
+
+  // A record is read-only if we are in viewing mode OR if it's locked by workflow
+  // (unless the workflow specifically allows editing for this stage/user)
+  const isLockedByWf =
+    itemData?.transactionStatus &&
+    !["draft", "rejected", "recalled"].includes(itemData.transactionStatus) &&
+    !workflowState?.canEdit;
+  const isReadOnly = isViewing || !hasEditPermission || isLockedByWf;
+
   useEffect(() => {
-    const fetchFeatures = async () => {
-      try {
-        const res = await api.get("/features");
-        const featureObj = {};
-        res.data.data.forEach((f) => {
-          featureObj[f.name] = f.isEnabled;
-        });
-        setFeatures(featureObj);
-      } catch (err) {
-        console.error("Failed to fetch features", err);
-      }
-    };
-    fetchFeatures();
-  }, []);
-
-  // Fetch record for edit/view mode
-  useEffect(() => {
-    const fetchRecord = async () => {
-      if (isEdit && config) {
-        setLoading(true);
-        dispatch(setGlobalLoading(true));
-        try {
-          const res = await api.get(`${config.endpoint}/${id}`);
-          const data = res.data.data;
-          setItemData(data);
-
-          dispatch(
-            setPageContext({
-              title: `${isViewing ? "View" : "Edit"} Item: ${data.itemCode || data._id}`,
-              actions: [],
-            }),
-          );
-
-          const formData = { ...data };
-
-          if (data.createdBy && typeof data.createdBy === "object") {
-            formData.createdBy = data.createdBy.fullName || data.createdBy._id;
-          }
-          if (data.updatedBy && typeof data.updatedBy === "object") {
-            formData.updatedBy = data.updatedBy.fullName || data.updatedBy._id;
-          }
-          if (data.approvedBy && typeof data.approvedBy === "object") {
-            formData.approvedBy =
-              data.approvedBy.fullName || data.approvedBy._id;
-          }
-
-          if (data.createdAt)
-            formData.createdAt = format(
-              new Date(data.createdAt),
-              "dd-MMM-yyyy HH:mm:ss",
-            );
-          if (data.updatedAt)
-            formData.updatedAt = format(
-              new Date(data.updatedAt),
-              "dd-MMM-yyyy HH:mm:ss",
-            );
-          if (data.approvedDate)
-            formData.approvedDate = format(
-              new Date(data.approvedDate),
-              "dd-MMM-yyyy HH:mm:ss",
-            );
-
-          config.formSections.forEach((section) => {
-            section.fields.forEach((field) => {
-              if (
-                field.type === "asyncSelect" &&
-                data[field.name] &&
-                typeof data[field.name] === "object"
-              ) {
-                formData[field.name] = data[field.name]._id;
-              }
-            });
-          });
-
-          reset(formData);
-        } catch (err) {
-          toast.error(err.message || "Failed to fetch item data");
-          navigate("/item");
-        } finally {
-          setLoading(false);
-          dispatch(setGlobalLoading(false));
-        }
-      } else {
-        dispatch(
-          setPageContext({
-            title: "Create New Item",
-            actions: [],
-          }),
-        );
-      }
-    };
-
     fetchRecord();
-  }, [isEdit, id, config, reset, dispatch, navigate, isViewing]);
+  }, [isEdit, id, config, reset]);
+
+  // Set Page Context Actions
+  useEffect(() => {
+    if (config) {
+      const headerActions = [];
+
+      // canEdit from workflow overrides menu-level permission (e.g. for Approvers with mandatory fields)
+      const canEditThisRecord =
+        workflowState?.canEdit ||
+        (hasEditPermission &&
+          (!itemData?.transactionStatus ||
+            ["draft", "rejected", "recalled"].includes(
+              itemData?.transactionStatus,
+            )));
+
+      if (isEdit && isViewing && canEditThisRecord) {
+        headerActions.push({
+          label: "Edit",
+          onClick: () => setIsViewing(false),
+          variant: "primary",
+          icon: "edit",
+        });
+      }
+
+      if (!isViewing) {
+        headerActions.push({
+          label: "Cancel",
+          onClick: () => {
+            if (isEdit) {
+              setIsViewing(true);
+              fetchRecord();
+            } else {
+              navigate("/item");
+            }
+          },
+          variant: "secondary",
+        });
+      }
+
+      dispatch(
+        setPageContext({
+          title: isEdit
+            ? `${isViewing ? "View" : "Edit"} Item: ${itemData?.itemCode || id}`
+            : "Create New Item",
+          actions: headerActions,
+        }),
+      );
+    }
+  }, [
+    isEdit,
+    id,
+    isViewing,
+    itemData,
+    workflowState,
+    hasEditPermission,
+    dispatch,
+    navigate,
+  ]);
 
   const fetchHistory = () => setIsHistoryOpen(true);
   const fetchWorkflowTrail = () => setIsWfTrailOpen(true);
 
   const onSubmit = async (values) => {
+    // Dynamic Mandatory Fields Check (Stage-specific)
+    const missingFields = (workflowState?.mandatoryFields || []).filter((f) => {
+      const val = values[f];
+      return val === undefined || val === null || val === "";
+    });
+
+    if (missingFields.length > 0) {
+      const allFields = config.formSections.flatMap((s) => s.fields);
+      const labels = missingFields.map(
+        (f) => allFields.find((af) => af.name === f)?.label || f,
+      );
+      toast.error(`Workflow Mandatory Fields Missing: ${labels.join(", ")}`);
+      return;
+    }
+
     setSubmitting(true);
     dispatch(setGlobalLoading(true));
     try {
-      // Remove metadata fields that should not be sent to the backend
-      const { createdBy, updatedBy, createdAt, updatedAt, ...payload } = values;
+      const flattenPayload = (obj) => {
+        if (!obj || typeof obj !== "object" || obj instanceof Date) {
+          return obj;
+        }
+        if (Array.isArray(obj)) return obj.map(flattenPayload);
+
+        if (obj._id || obj.value) {
+          return obj._id || obj.value;
+        }
+
+        const newObj = {};
+        Object.keys(obj).forEach((key) => {
+          newObj[key] = flattenPayload(obj[key]);
+        });
+        return newObj;
+      };
+
+      const { createdBy, updatedBy, createdAt, updatedAt, _id, __v, ...rest } =
+        values;
+      const payload = {};
+      Object.keys(rest).forEach((key) => {
+        payload[key] = flattenPayload(rest[key]);
+      });
 
       // If auto-generate is on and we are creating, remove empty itemCode to let backend handle it
-      if (!isEdit && features.itemCodeAutoGenerate && !payload.itemCode) {
-        delete payload.itemCode;
+      if (!isEdit && isEnabled("AUTOID_ITEM")) {
+        if (!payload.itemCode) delete payload.itemCode;
+
+        // Ensure prefix source (itemType) is present
+        if (!payload.itemType) {
+          toast.error("Please select an Item Type for auto-code generation");
+          setSubmitting(false);
+          dispatch(setGlobalLoading(false));
+          return;
+        }
       }
 
       if (isEdit) {
@@ -195,7 +256,13 @@ export default function ItemForm() {
         const res = await api.post(config.endpoint, payload);
         toast.success(`New item created successfully`);
         const newRecord = res.data.data;
-        const navId = newRecord[config.displayIdField] || newRecord._id;
+        let navId = newRecord[config.displayIdField] || newRecord._id;
+
+        // Prevent navigating to "undefined-XXX" URLs if backend auto-id failed
+        if (String(navId).includes("undefined")) {
+          navId = newRecord._id;
+        }
+
         navigate(`/item/${navId}`);
         return;
       }
@@ -212,30 +279,118 @@ export default function ItemForm() {
 
   const handleSubmitForApproval = async () => {
     setSubmitting(true);
+    dispatch(setGlobalLoading(true));
     try {
       await api.patch(`${config.endpoint}/${id}/submit`);
       toast.success("Item submitted for approval");
-      navigate("/item");
+      refreshWf();
+      fetchRecord();
     } catch (err) {
       toast.error(err.response?.data?.message || "Submission failed");
     } finally {
       setSubmitting(false);
+      dispatch(setGlobalLoading(false));
     }
   };
 
-  // Determine read-only based on permissions and component state
-  const menu = user?.userRole?.menus?.find((m) => {
-    const checkId = typeof m.menuId === "object" ? m.menuId?.menuId : m.menuId;
-    return checkId?.toLowerCase() === "item";
-  });
-  const hasEditPermission = menu?.permissions?.some((p) =>
-    ["edit", "all", "submit", "approve"].includes(p.toLowerCase()),
-  );
-  const isReadOnly =
-    isViewing ||
-    !hasEditPermission ||
-    (itemData?.transactionStatus &&
-      !["draft", "rejected"].includes(itemData.transactionStatus));
+  const handleWorkflowAction = async () => {
+    if (!activeAction) return;
+    setIsActioning(true);
+    dispatch(setGlobalLoading(true));
+    try {
+      const payload = {
+        transactionId: itemData._id,
+        transactionModel: "Item",
+        action: activeAction,
+        comments: wfComments,
+      };
+
+      if (activeAction === "delegate") {
+        payload.delegatedToUserId = delegatedToUserId;
+      }
+
+      await api.post(`/workflows/action`, payload);
+      toast.success(`Item ${activeAction?.replace("_", " ")}d successfully`);
+      setIsActionDialogOpen(false);
+      setWfComments("");
+      setDelegatedToUserId(null);
+      refreshWf();
+      fetchRecord();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Action failed");
+    } finally {
+      setIsActioning(false);
+      dispatch(setGlobalLoading(false));
+    }
+  };
+
+  const handleAmend = async () => {
+    setIsAmending(true);
+    dispatch(setGlobalLoading(true));
+    try {
+      await api.post("/workflows/amend", {
+        transactionId: itemData._id,
+        transactionModel: "Item",
+      });
+      toast.success("Transaction amended successfully. You can now edit.");
+      fetchRecord();
+      refreshWf();
+      setIsViewing(false);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Amendment failed");
+    } finally {
+      setIsAmending(false);
+      dispatch(setGlobalLoading(false));
+    }
+  };
+
+  const fetchRecord = async () => {
+    if (isEdit && config) {
+      setLoading(true);
+      dispatch(setGlobalLoading(true));
+      try {
+        const res = await api.get(`${config.endpoint}/${id}`);
+        const data = res.data.data;
+        setItemData(data);
+
+        const formData = { ...data };
+
+        if (data.createdBy && typeof data.createdBy === "object") {
+          formData.createdBy = data.createdBy.fullName || data.createdBy._id;
+        }
+        if (data.updatedBy && typeof data.updatedBy === "object") {
+          formData.updatedBy = data.updatedBy.fullName || data.updatedBy._id;
+        }
+        if (data.approvedBy && typeof data.approvedBy === "object") {
+          formData.approvedBy = data.approvedBy.fullName || data.approvedBy._id;
+        }
+
+        if (data.createdAt)
+          formData.createdAt = format(
+            new Date(data.createdAt),
+            "dd-MMM-yyyy HH:mm:ss",
+          );
+        if (data.updatedAt)
+          formData.updatedAt = format(
+            new Date(data.updatedAt),
+            "dd-MMM-yyyy HH:mm:ss",
+          );
+        if (data.approvedDate)
+          formData.approvedDate = format(
+            new Date(data.approvedDate),
+            "dd-MMM-yyyy HH:mm:ss",
+          );
+
+        reset(formData);
+      } catch (err) {
+        toast.error(err.message || "Failed to fetch item data");
+        navigate("/item");
+      } finally {
+        setLoading(false);
+        dispatch(setGlobalLoading(false));
+      }
+    }
+  };
 
   if (loading || !config) return null;
 
@@ -251,7 +406,7 @@ export default function ItemForm() {
         itemData={itemData}
         hasEditPermission={hasEditPermission}
         isReadOnly={isReadOnly}
-        features={features}
+        isEnabled={isEnabled}
         isHistoryOpen={isHistoryOpen}
         setIsHistoryOpen={setIsHistoryOpen}
         isWfTrailOpen={isWfTrailOpen}
@@ -265,38 +420,68 @@ export default function ItemForm() {
         isDirty={isDirty}
         navigate={navigate}
         getValues={getValues}
+        setValue={setValue}
+        watch={watch}
         handleSubmitForApproval={handleSubmitForApproval}
+        workflowState={workflowState}
         id={id}
+        isActionDialogOpen={isActionDialogOpen}
+        setIsActionDialogOpen={setIsActionDialogOpen}
+        activeAction={activeAction}
+        setActiveAction={setActiveAction}
+        wfComments={wfComments}
+        setWfComments={setWfComments}
+        isActioning={isActioning}
+        handleWorkflowAction={handleWorkflowAction}
+        handleAmend={handleAmend}
+        delegatedToUserId={delegatedToUserId}
+        setDelegatedToUserId={setDelegatedToUserId}
       />
     </FormPage>
   );
 }
 
-function ItemFormInner({
-  config,
-  isEdit,
-  isViewing,
-  setIsViewing,
-  itemData,
-  hasEditPermission,
-  isReadOnly,
-  features,
-  isHistoryOpen,
-  setIsHistoryOpen,
-  isWfTrailOpen,
-  setIsWfTrailOpen,
-  register,
-  control,
-  errors,
-  handleSubmit,
-  onSubmit,
-  submitting,
-  isDirty,
-  navigate,
-  getValues,
-  handleSubmitForApproval,
-  id,
-}) {
+function ItemFormInner(props) {
+  const {
+    config,
+    isEdit,
+    isViewing,
+    setIsViewing,
+    itemData,
+    hasEditPermission,
+    isReadOnly,
+    isEnabled,
+    isHistoryOpen,
+    setIsHistoryOpen,
+    isWfTrailOpen,
+    setIsWfTrailOpen,
+    register,
+    control,
+    errors,
+    watch,
+    onSubmit,
+    submitting,
+    isDirty,
+    navigate,
+    getValues,
+    setValue,
+    handleSubmit,
+    handleSubmitForApproval,
+    workflowState,
+    id,
+    isActionDialogOpen,
+    setIsActionDialogOpen,
+    activeAction,
+    setActiveAction,
+    wfComments,
+    setWfComments,
+    isActioning,
+    handleWorkflowAction,
+    handleAmend,
+    delegatedToUserId,
+    setDelegatedToUserId,
+  } = props;
+
   const { expandedIds, setExpandedIds } = useFormContext();
 
   const renderField = (field) => {
@@ -304,13 +489,18 @@ function ItemFormInner({
       isReadOnly ||
       field.disabled ||
       (isEdit ? field.disabledOnEdit : field.disabledOnCreate);
+    const isWorkflowMandatory = workflowState?.mandatoryFields?.includes(
+      field.name,
+    );
+    const isRequired =
+      (field.required || isWorkflowMandatory) && !fieldDisabled;
 
     return (
       <FormField
         key={field.name}
         label={field.label}
         help={field.help}
-        required={field.required}
+        required={isRequired}
         error={errors[field.name]}
         className={
           field.type === "textarea" || field.multiple
@@ -331,6 +521,20 @@ function ItemFormInner({
                 disabled={fieldDisabled}
                 placeholder={`Select ${field.label.toLowerCase()}...`}
                 error={errors[field.name]}
+              />
+            )}
+          />
+        ) : field.type === "searchableSelect" ? (
+          <Controller
+            name={field.name}
+            control={control}
+            render={({ field: { value, onChange } }) => (
+              <SearchableSelect
+                options={field.options}
+                value={value}
+                onChange={onChange}
+                disabled={fieldDisabled}
+                placeholder={`Select ${field.label.toLowerCase()}...`}
               />
             )}
           />
@@ -386,22 +590,30 @@ function ItemFormInner({
           <input
             type={field.type}
             placeholder={
-              field.name === "itemCode" && features.itemCodeAutoGenerate
+              field.name === "itemCode" && isEnabled("AUTOID_ITEM")
                 ? "Auto-generated on save"
                 : `Enter ${field.label.toLowerCase()}...`
             }
             disabled={
               fieldDisabled ||
-              (field.name === "itemCode" &&
-                features.itemCodeAutoGenerate &&
-                !isEdit)
+              (field.name === "itemCode" && isEnabled("AUTOID_ITEM") && !isEdit)
             }
-            {...register(field.name)}
-            className={`flex h-11 w-full rounded-xl border bg-slate-50/50 px-4 py-2 text-sm transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60 ${
+            {...register(field.name, {
+              onChange: (e) => {
+                if (field.name === "itemCode") {
+                  const upper = e.target.value.toUpperCase();
+                  e.target.value = upper; // Visual sync
+                  setValue(field.name, upper); // Form state sync
+                }
+              },
+            })}
+            className={cn(
+              "flex h-11 w-full rounded-xl border bg-slate-50/50 px-4 py-2 text-sm transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60",
+              field.name === "itemCode" && "uppercase font-bold tracking-wider",
               errors[field.name]
                 ? "border-red-400"
-                : "border-slate-200 focus:border-indigo-400"
-            }`}
+                : "border-slate-200 focus:border-indigo-400",
+            )}
           />
         )}
       </FormField>
@@ -412,40 +624,55 @@ function ItemFormInner({
     <>
       <FormHeader
         title={
-          isEdit
-            ? getValues().itemCode
-              ? `Item: ${getValues().itemCode}`
-              : "Update Item"
-            : "Create New Item"
+          isEdit ? (
+            getValues().itemCode ? (
+              <div className="flex items-center gap-2">
+                Item{" "}
+                <code className="text-[0.7em] font-mono font-bold bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-lg border border-indigo-100">
+                  {getValues().itemCode}
+                </code>
+              </div>
+            ) : (
+              "Update Item"
+            )
+          ) : (
+            "Create New Item"
+          )
         }
         subtitle={
-          isEdit && itemData?.itemCode
-            ? `Record ID: ${itemData.itemCode}`
-            : `Define a new master record`
+          isEdit && (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
+                  Status:
+                </span>
+                <StatusBadge status={itemData?.transactionStatus || "Draft"} />
+              </div>
+
+              {isEnabled("WF_ITEM") && workflowState?.currentStageName && (
+                <div className="flex items-center gap-2 border-l border-slate-200 pl-6">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
+                    Stage:
+                  </span>
+                  <StatusBadge status={workflowState.currentStageName} />
+                </div>
+              )}
+            </div>
+          )
         }
         breadcrumbs={["Item Master", isEdit ? "Update" : "New"]}
         onBack={() => navigate("/item")}
       >
-        {isEdit &&
-          isViewing &&
-          hasEditPermission &&
-          (itemData?.transactionStatus === "draft" ||
-            !itemData?.transactionStatus) && (
-            <button
-              onClick={() => setIsViewing(false)}
-              className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all"
-            >
-              <Edit2 className="w-4 h-4" />
-              Edit Item
-            </button>
-          )}
-
         {isEdit && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-colors hover:bg-slate-50 focus:outline-none">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-10 h-10 p-0 rounded-xl"
+              >
                 <MoreVertical className="h-4 w-4" />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem
@@ -455,13 +682,15 @@ function ItemFormInner({
                 <History className="mr-2 h-4 w-4 text-slate-500" />
                 Audit History
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setIsWfTrailOpen(true)}
-                className="cursor-pointer"
-              >
-                <Send className="mr-2 h-4 w-4 text-slate-500" />
-                Workflow Trail
-              </DropdownMenuItem>
+              {isEnabled("WF_ITEM") && (
+                <DropdownMenuItem
+                  onClick={() => setIsWfTrailOpen(true)}
+                  className="cursor-pointer"
+                >
+                  <Send className="mr-2 h-4 w-4 text-slate-500" />
+                  Workflow Trail
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <CsvDownload
                 data={[getValues()]}
@@ -498,32 +727,153 @@ function ItemFormInner({
         <FormActionBar
           isDirty={isDirty}
           isSubmitting={submitting}
-          onCancel={() =>
-            isViewing
-              ? navigate("/item")
-              : isEdit
-                ? setIsViewing(true)
-                : navigate("/item")
-          }
-          submitLabel={isEdit ? "Update Item" : "Create Item"}
+          onCancel={() => navigate("/item")}
+          submitLabel={isEdit ? "Save as Draft" : "Create Record"}
           onSubmit={isReadOnly ? null : handleSubmit(onSubmit)}
-          cancelLabel={isReadOnly ? "Return to List" : "Cancel Changes"}
+          cancelLabel="Return to List"
         >
-          {!isReadOnly &&
-            isEdit &&
-            features.itemWorkflowEnabled &&
-            itemData?.transactionStatus === "draft" && (
-              <button
-                type="button"
-                onClick={handleSubmitForApproval}
-                disabled={submitting}
-                className="inline-flex items-center justify-center rounded-xl text-sm font-bold transition-all bg-amber-500 text-white hover:bg-amber-600 h-11 px-6 shadow-md shadow-amber-200"
-              >
-                <Send className="w-4 h-4 mr-2" /> Submit for Approval
-              </button>
+          {/* Integrated Workflow Actions - Enterprise Flow */}
+          <div className="flex items-center gap-2 mr-4">
+            {/* 1. Submission Flow */}
+            {isEnabled("WF_ITEM") &&
+              isEdit &&
+              isViewing &&
+              (!itemData?.transactionStatus ||
+                ["draft", "rejected", "recalled"].includes(
+                  itemData?.transactionStatus?.toLowerCase(),
+                )) && (
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="bg-amber-600 hover:bg-amber-700 border-none"
+                  onClick={handleSubmitForApproval}
+                  size="sm"
+                  leftIcon={<Send className="w-4 h-4" />}
+                >
+                  Submit for Approval
+                </Button>
+              )}
+
+            {/* 2. Approval Flow */}
+            {isViewing && (
+              <>
+                {workflowState?.canApprove && (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    className="bg-emerald-600 hover:bg-emerald-700 border-none"
+                    onClick={() => {
+                      setActiveAction("approve");
+                      setIsActionDialogOpen(true);
+                    }}
+                    size="sm"
+                    leftIcon={<CheckCircle className="w-4 h-4" />}
+                  >
+                    Approve
+                  </Button>
+                )}
+                {workflowState?.canReject && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-200 text-red-600 hover:bg-red-50"
+                    onClick={() => {
+                      setActiveAction("reject");
+                      setIsActionDialogOpen(true);
+                    }}
+                    size="sm"
+                    leftIcon={<XCircle className="w-4 h-4" />}
+                  >
+                    Reject
+                  </Button>
+                )}
+
+                {(workflowState?.canAction || workflowState?.canDelegate) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        Workflow Actions
+                        <ChevronDown className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      {workflowState?.canAction && (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setActiveAction("clarify");
+                            setIsActionDialogOpen(true);
+                          }}
+                        >
+                          <HelpCircle className="w-4 h-4 mr-2 text-amber-500" />
+                          Request Clarification
+                        </DropdownMenuItem>
+                      )}
+                      {workflowState?.canDelegate && (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setActiveAction("delegate");
+                            setIsActionDialogOpen(true);
+                          }}
+                        >
+                          <UserPlus className="w-4 h-4 mr-2 text-indigo-500" />
+                          Delegate Transaction
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </>
             )}
+
+            {/* 3. Clarification Flow */}
+            {workflowState?.status === "clarification_requested" &&
+              isViewing && (
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="bg-indigo-600 hover:bg-indigo-700 border-none"
+                  onClick={() => {
+                    setActiveAction("clarification_provided");
+                    setIsActionDialogOpen(true);
+                  }}
+                  size="sm"
+                  leftIcon={<RefreshCcw className="w-4 h-4" />}
+                >
+                  Provide Clarification
+                </Button>
+              )}
+
+            {/* 4. Amendment Flow */}
+            {isViewing &&
+              ["approved", "rejected"].includes(
+                itemData?.transactionStatus?.toLowerCase(),
+              ) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                  onClick={handleAmend}
+                  size="sm"
+                  leftIcon={<Edit className="w-4 h-4" />}
+                >
+                  Amend Transaction
+                </Button>
+              )}
+          </div>
         </FormActionBar>
       </form>
+
+      <WorkflowActionDialog
+        isOpen={isActionDialogOpen}
+        onClose={setIsActionDialogOpen}
+        action={activeAction}
+        comments={wfComments}
+        setComments={setWfComments}
+        onConfirm={handleWorkflowAction}
+        isLoading={isActioning}
+        delegatedToUserId={delegatedToUserId}
+        setDelegatedToUserId={setDelegatedToUserId}
+      />
 
       <Drawer
         isOpen={isHistoryOpen}

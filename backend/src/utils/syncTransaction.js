@@ -43,6 +43,10 @@ export const syncTransactionStatus = async (
       updatePayload.transactionStatus = "clarification_requested";
     }
 
+    // Set stage name if provided (useful for list view badges)
+    // Removed currentStageName storage on model as per user request
+    // We will use joins or lookups to display current stage
+
     // Also update legacy workflowStatus field if it exists in the model
     if (Model.schema.path("workflowStatus")) {
       updatePayload.workflowStatus = workflowStatus;

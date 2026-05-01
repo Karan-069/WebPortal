@@ -23,7 +23,9 @@ export const autoCodePlugin = (schema, options) => {
     // Only generate code if it's a new document and the field is empty
     if (
       this.isNew &&
-      (!this[config.field] || this[config.field] === "Auto-generated")
+      (!this[config.field] ||
+        this[config.field] === "Auto-generated" ||
+        this[config.field] === "")
     ) {
       let NextTransactionIdModel;
 
@@ -32,17 +34,32 @@ export const autoCodePlugin = (schema, options) => {
         if (tenantModels && tenantModels.NextTransactionId) {
           NextTransactionIdModel = tenantModels.NextTransactionId;
         } else {
-          // Fallback to the current connection's model (works for global models)
           NextTransactionIdModel =
             this.constructor.db.model("NextTransactionId");
         }
 
+        // Determine dynamic menuId and prefix based on category if requested
+        let sequenceKey = moduleName;
+        let defaultPrefix = config.prefix;
+
+        if (config.prefixField && this[config.prefixField]) {
+          const dynamicValue = String(this[config.prefixField]);
+          if (
+            dynamicValue &&
+            dynamicValue !== "undefined" &&
+            dynamicValue !== "null"
+          ) {
+            sequenceKey = `${moduleName}-${dynamicValue}`;
+            defaultPrefix = dynamicValue;
+          }
+        }
+
         // Find or create sequence entry
         const sequenceDoc = await NextTransactionIdModel.findOneAndUpdate(
-          { menuId: moduleName },
+          { menuId: sequenceKey },
           {
             $inc: { sequenceValue: 1 },
-            $setOnInsert: { prefix: config.prefix },
+            $setOnInsert: { prefix: defaultPrefix },
           },
           {
             new: true,
@@ -52,10 +69,11 @@ export const autoCodePlugin = (schema, options) => {
         );
 
         // Format: PREFIX-0001
+        const activePrefix = sequenceDoc.prefix || defaultPrefix || "ID";
         const paddedValue = sequenceDoc.sequenceValue
           .toString()
           .padStart(3, "0");
-        this[config.field] = `${sequenceDoc.prefix}-${paddedValue}`;
+        this[config.field] = `${activePrefix}-${paddedValue}`.toUpperCase();
       } catch (error) {
         return next(error);
       }

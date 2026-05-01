@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { setPageContext } from "../../store/features/uiSlice";
+import { setUser } from "../../store/features/authSlice";
 import api from "../../services/api";
 import toast from "react-hot-toast";
 import { cn } from "../../lib/utils";
@@ -11,10 +12,14 @@ import {
   ShieldCheck,
   AlertCircle,
   Loader2,
-  CheckCircle2,
   ArrowLeft,
   Save,
+  ShieldAlert,
+  CheckCircle2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import Button from "../../components/ui/Button";
 
 const PASSWORD_REGEX =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
@@ -22,17 +27,25 @@ const PASSWORD_REGEX =
 export default function ChangePassword() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const { user } = useSelector((state) => state.auth);
+
+  const isForced = user?.mustChangePassword;
 
   useEffect(() => {
     dispatch(
       setPageContext({
-        title: "Update Password",
+        title: "Security Credentials",
         actions: [],
       }),
     );
   }, [dispatch]);
 
   const [loading, setLoading] = useState(false);
+  const [showPasswords, setShowPasswords] = useState({
+    old: false,
+    new: false,
+    confirm: false,
+  });
   const [formData, setFormData] = useState({
     oldPassword: "",
     newPassword: "",
@@ -88,6 +101,7 @@ export default function ChangePassword() {
         newPassword: formData.newPassword,
       });
       toast.success("Password changed successfully");
+      dispatch(setUser({ ...user, mustChangePassword: false }));
       navigate("/dashboard");
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to change password");
@@ -96,143 +110,206 @@ export default function ChangePassword() {
     }
   };
 
+  const toggleVisibility = (field) => {
+    setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
+  };
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-            Change Password
-          </h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">
-            Keep your account secure with a strong password
-          </p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/30 flex items-center gap-3">
-          <div className="p-1.5 bg-indigo-50 rounded-lg">
-            <Key className="w-4 h-4 text-indigo-600" />
+    <div className="w-full h-full animate-in fade-in duration-700">
+      <div className="space-y-6 p-2">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+              Security Credentials
+            </h1>
+            <p className="text-base font-medium text-slate-500 mt-1">
+              Manage and update your enterprise access credentials
+            </p>
           </div>
-          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
-            Security Credentials
-          </h3>
+          <Button
+            onClick={handleSubmit}
+            isLoading={loading}
+            disabled={!Object.values(validation).every(Boolean)}
+            leftIcon={<Save size={18} />}
+            className="h-11 px-8 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/20 font-bold uppercase tracking-[0.15em] [word-spacing:0.1em] text-[11px]"
+          >
+            Update Password
+          </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-500 font-bold uppercase tracking-wide">
-                  Current Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="password"
-                    required
-                    value={formData.oldPassword}
-                    onChange={(e) =>
-                      setFormData({ ...formData, oldPassword: e.target.value })
-                    }
-                    placeholder="Enter current password"
-                    className="flex h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-500 font-bold uppercase tracking-wide">
-                  New Password
-                </label>
-                <div className="relative">
-                  <ShieldCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="password"
-                    required
-                    value={formData.newPassword}
-                    onChange={handlePasswordChange}
-                    placeholder="Minimal 8 characters"
-                    className="flex h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-500 font-bold uppercase tracking-wide">
-                  Confirm New Password
-                </label>
-                <div className="relative">
-                  <ShieldCheck className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="password"
-                    required
-                    value={formData.confirmPassword}
-                    onChange={handleConfirmChange}
-                    placeholder="Repeat new password"
-                    className="flex h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-slate-900/5 focus:border-slate-900"
-                  />
-                </div>
-              </div>
+        {isForced && (
+          <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 flex items-start gap-5 animate-in slide-in-from-top-4 duration-500 shadow-sm shadow-amber-100/50">
+            <div className="p-2.5 bg-white rounded-2xl shadow-sm border border-amber-100 shrink-0">
+              <ShieldAlert className="w-6 h-6 text-amber-600 animate-pulse" />
             </div>
-
-            <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <AlertCircle className="w-3 h-3" /> complexity rules
+            <div>
+              <h3 className="text-amber-900 font-bold text-lg leading-tight">
+                Administrative Action Required
               </h3>
-              <div className="grid grid-cols-1 gap-2.5">
-                {[
-                  { label: "Minimal 8 Characters", key: "minLength" },
-                  { label: "One Uppercase Letter", key: "upperCase" },
-                  { label: "One Lowercase Letter", key: "lowerCase" },
-                  { label: "One Numeric Value", key: "number" },
-                  { label: "One Special Character", key: "specialChar" },
-                  { label: "Both Passwords Match", key: "match" },
-                ].map((rule) => (
-                  <div
-                    key={rule.key}
-                    className={cn(
-                      "flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all text-xs font-bold",
-                      validation[rule.key]
-                        ? "bg-emerald-50 border-emerald-100 text-emerald-700"
-                        : "bg-white border-slate-100 text-slate-400 shadow-sm",
-                    )}
-                  >
-                    {validation[rule.key] ? (
-                      <CheckCircle2 className="w-4 h-4" />
-                    ) : (
-                      <div className="w-4 h-4 rounded-full border-2 border-slate-100" />
-                    )}
-                    {rule.label}
-                  </div>
-                ))}
-              </div>
+              <p className="text-amber-800/70 text-sm mt-1.5 font-medium leading-relaxed">
+                Your account security policy requires an immediate password
+                update. Establish a new secure credential to unlock all system
+                features.
+              </p>
             </div>
           </div>
+        )}
 
-          <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-white/80 backdrop-blur-md border border-slate-200 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-center justify-end gap-3 z-20">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center justify-center rounded-xl text-sm font-bold transition-all border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 h-11 px-6 shadow-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !Object.values(validation).every(Boolean)}
-              className="inline-flex items-center justify-center rounded-xl text-sm font-bold transition-all bg-slate-900 text-white hover:bg-slate-800 h-11 px-10 disabled:pointer-events-none disabled:opacity-50 shadow-lg shadow-slate-200"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" /> Update Password
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
+          <form onSubmit={handleSubmit} className="p-8 md:p-10 space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
+              {/* Left Column: Vertical Inputs */}
+              <div className="lg:col-span-5 space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.15em] [word-spacing:0.1em] ml-1">
+                    Current Password
+                  </label>
+                  <div className="relative group">
+                    <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
+                    <input
+                      type={showPasswords.old ? "text" : "password"}
+                      required
+                      value={formData.oldPassword}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          oldPassword: e.target.value,
+                        })
+                      }
+                      placeholder="Enter current password"
+                      className="w-full h-14 pl-12 pr-12 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none transition-all font-medium text-slate-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleVisibility("old")}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                    >
+                      {showPasswords.old ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.15em] [word-spacing:0.1em] ml-1">
+                    New Password
+                  </label>
+                  <div className="relative group">
+                    <Key className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
+                    <input
+                      type={showPasswords.new ? "text" : "password"}
+                      required
+                      value={formData.newPassword}
+                      onChange={handlePasswordChange}
+                      placeholder="Establish new password"
+                      className="w-full h-14 pl-12 pr-12 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none transition-all font-medium text-slate-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleVisibility("new")}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                    >
+                      {showPasswords.new ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] text-slate-400 font-bold uppercase tracking-[0.15em] [word-spacing:0.1em] ml-1">
+                    Confirm New Password
+                  </label>
+                  <div className="relative group">
+                    <ShieldCheck className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-600 transition-colors" />
+                    <input
+                      type={showPasswords.confirm ? "text" : "password"}
+                      required
+                      value={formData.confirmPassword}
+                      onChange={handleConfirmChange}
+                      placeholder="Repeat new password"
+                      className="w-full h-14 pl-12 pr-12 rounded-2xl border border-slate-100 bg-slate-50/50 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none transition-all font-medium text-slate-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleVisibility("confirm")}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                    >
+                      {showPasswords.confirm ? (
+                        <EyeOff size={18} />
+                      ) : (
+                        <Eye size={18} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: 2-Column Checklist */}
+              <div className="lg:col-span-7">
+                <div className="h-full bg-slate-50/50 rounded-3xl p-8 border border-slate-100/50 flex flex-col justify-center">
+                  <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.15em] [word-spacing:0.1em] mb-6 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-indigo-500" />{" "}
+                    Complexity Requirements
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                    {[
+                      { label: "8 Characters Minimum", key: "minLength" },
+                      { label: "One Uppercase Letter", key: "upperCase" },
+                      { label: "One Lowercase Letter", key: "lowerCase" },
+                      { label: "One Numeric Value", key: "number" },
+                      { label: "One Special Character", key: "specialChar" },
+                      { label: "Passwords Must Match", key: "match" },
+                    ].map((rule) => (
+                      <div
+                        key={rule.key}
+                        className={cn(
+                          "flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-300 text-[11px] font-bold uppercase tracking-[0.05em]",
+                          validation[rule.key]
+                            ? "bg-white border-emerald-500/20 text-emerald-700 shadow-sm shadow-emerald-500/5"
+                            : "bg-white/50 border-transparent text-slate-400 opacity-60",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center transition-all duration-500",
+                            validation[rule.key]
+                              ? "bg-emerald-500 text-white"
+                              : "bg-slate-100 text-slate-300",
+                          )}
+                        >
+                          {validation[rule.key] ? (
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                          ) : (
+                            <div className="w-1 h-1 rounded-full bg-current" />
+                          )}
+                        </div>
+                        <span className="truncate">{rule.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-100 flex justify-end">
+              <Button
+                type="submit"
+                isLoading={loading}
+                disabled={!Object.values(validation).every(Boolean)}
+                leftIcon={<Save size={18} />}
+                className="h-11 px-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/20 font-bold uppercase tracking-widest text-xs"
+              >
+                Update Password
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

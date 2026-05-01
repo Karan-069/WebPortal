@@ -10,6 +10,9 @@ import {
   updateWorkflowService,
   toggleWorkflowStatusService,
   amendWorkflowService,
+  getWorkflowStateService,
+  recallWorkflowService,
+  addAdHocApproverService,
 } from "../services/workflow.service.js";
 
 const initiateWorkflow = asyncHandler(async (req, res) => {
@@ -42,6 +45,39 @@ const amendWorkflow = asyncHandler(async (req, res) => {
         200,
         workflowResult,
         "Transaction amended and workflow reset successfully",
+      ),
+    );
+});
+
+const recallWorkflow = asyncHandler(async (req, res) => {
+  const { transactionId, transactionModel } = req.body;
+  const workflowResult = await recallWorkflowService(
+    transactionId,
+    transactionModel,
+    req.user._id,
+  );
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, workflowResult, "Transaction recalled successfully"),
+    );
+});
+
+const addAdHocApprover = asyncHandler(async (req, res) => {
+  const { transactionId, transactionModel, approverId } = req.body;
+  const workflowResult = await addAdHocApproverService(
+    transactionId,
+    transactionModel,
+    approverId,
+    req.user._id,
+  );
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        workflowResult,
+        "Ad-Hoc Approver added successfully",
       ),
     );
 });
@@ -120,6 +156,18 @@ const toggleWorkflowStatus = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, result.updatedRecord, result.successMessage));
 });
 
+const getWorkflowState = asyncHandler(async (req, res) => {
+  const { transactionId, transactionModel } = req.query;
+  const result = await getWorkflowStateService(
+    transactionId,
+    transactionModel,
+    req.user._id,
+  );
+  return res
+    .status(200)
+    .json(new ApiResponse(200, result, "Workflow state fetched successfully"));
+});
+
 export {
   initiateWorkflow,
   amendWorkflow,
@@ -130,4 +178,7 @@ export {
   createWorkflow,
   updateWorkflow,
   toggleWorkflowStatus,
+  getWorkflowState,
+  recallWorkflow,
+  addAdHocApprover,
 };

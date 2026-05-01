@@ -6,33 +6,37 @@ import { getLookupQuery } from "../utils/lookupHelper.js";
 
 const getUserRoleService = async (query) => {
   const { UserRole } = useModels();
-  const { page = 1, limit = 50, sortBy, sortOrder } = query;
+  const { page = 1, limit = 50, search = "", sortBy, sortOrder } = query;
 
   const pageNum = parseInt(page) > 0 ? parseInt(page) : 1;
   const limitNum = parseInt(limit) > 0 ? parseInt(limit) : 50;
 
+  const filter = {};
+  if (search) {
+    filter.$or = [
+      { roleCode: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+    ];
+  }
+
   const sort = {};
   if (sortBy && sortOrder) {
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
+  } else {
+    sort.createdAt = -1;
   }
 
-  const userRoles = await UserRole.paginate(
-    {},
-    {
-      page: pageNum,
-      limit: limitNum,
-      sort,
-    },
-  );
-
-  for (let userRole of userRoles.docs) {
-    if (userRole.PopulateMenus) {
-      await userRole.PopulateMenus();
-    }
-  }
+  const userRoles = await UserRole.paginate(filter, {
+    page: pageNum,
+    limit: limitNum,
+    populate: [
+      { path: "createdBy", select: "fullName" },
+      { path: "updatedBy", select: "fullName" },
+    ],
+  });
 
   const { docs, ...pagination } = userRoles;
-  return { data: docs, pagination };
+  return { docs, ...pagination };
 };
 
 const getUserRoleByIDService = async (id) => {
@@ -66,14 +70,23 @@ const addUserRoleService = async (body) => {
     throw new ApiError(400, "User Role already Exists!!");
   }
 
-  const menuIds = menus.map((m) => m.menuId);
+  // Flatten menus: extract ID from object if needed
+  const processedMenus = (menus || []).map((m) => ({
+    ...m,
+    menuId: m.menuId?._id || m.menuId?.value || m.menuId,
+  }));
+
+  const menuIds = processedMenus.map((m) => m.menuId);
 
   const validMenus = await AppMenu.find({ _id: { $in: menuIds } });
   if (validMenus.length !== menuIds.length) {
     throw new ApiError(400, "One or more Menus are invalid!!");
   }
 
-  const createRole = await UserRole.create({ roleCode, description, menus });
+  const createRole = await UserRole.create({
+    ...body,
+    menus: processedMenus,
+  });
 
   if (createRole) {
     await createRole.populate("createdBy updatedBy", "fullName");
@@ -95,7 +108,13 @@ const updateUserRoleService = async (id, body) => {
     throw new ApiError(400, "User Role does not Exists!!");
   }
 
-  const invalidMenuIds = menus.filter(
+  // Flatten menus: extract ID from object if needed
+  const processedMenus = (menus || []).map((m) => ({
+    ...m,
+    menuId: m.menuId?._id || m.menuId?.value || m.menuId,
+  }));
+
+  const invalidMenuIds = processedMenus.filter(
     (menu) => !mongoose.Types.ObjectId.isValid(menu.menuId),
   );
   if (invalidMenuIds.length > 0) {
@@ -105,7 +124,7 @@ const updateUserRoleService = async (id, body) => {
     );
   }
 
-  const menuIds = menus.map((m) => m.menuId);
+  const menuIds = processedMenus.map((m) => m.menuId);
 
   const validMenus = await AppMenu.find({
     _id: {
@@ -117,9 +136,12 @@ const updateUserRoleService = async (id, body) => {
   }
 
   const updatedUserRole = await UserRole.findByIdAndUpdate(
-    existingUserRole.id,
+    existingUserRole._id,
     {
-      $set: body,
+      $set: {
+        ...body,
+        menus: processedMenus,
+      },
     },
     { new: true, runValidators: true },
   ).populate("createdBy updatedBy", "fullName");

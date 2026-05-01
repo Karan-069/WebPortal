@@ -15,11 +15,14 @@ const getEmailTemplatesService = async (queryParams) => {
       }
     : {};
 
-  return await EmailTemplate.paginate(query, {
+  const result = await EmailTemplate.paginate(query, {
     page: parseInt(page),
     limit: parseInt(limit),
     sort: { createdAt: -1 },
   });
+
+  const { docs, ...pagination } = result;
+  return { docs, ...pagination };
 };
 
 const getEmailTemplateByIdService = async (id) => {

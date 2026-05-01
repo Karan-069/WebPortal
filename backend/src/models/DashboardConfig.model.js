@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import mongoosePaginate from "mongoose-paginate-v2";
 
 const cardSchema = new mongoose.Schema(
   {
@@ -28,4 +29,10 @@ const dashboardConfigSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-export default mongoose.model("DashboardConfig", dashboardConfigSchema);
+dashboardConfigSchema.plugin(mongoosePaginate);
+
+export const DashboardConfig = mongoose.model(
+  "DashboardConfig",
+  dashboardConfigSchema,
+);
+export { dashboardConfigSchema };

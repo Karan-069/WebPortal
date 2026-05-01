@@ -22,6 +22,7 @@ const workflowStateSchema = new Schema(
         "User",
         "City",
         "State",
+        "UserRole",
       ],
     },
     workflowId: {
@@ -32,11 +33,17 @@ const workflowStateSchema = new Schema(
     currentStageNumber: {
       type: Number,
       required: true,
-      min: 1,
+      min: 0,
     },
     status: {
       type: String,
-      enum: ["pending", "completed", "rejected", "clarification_requested"],
+      enum: [
+        "pending",
+        "completed",
+        "rejected",
+        "clarification_requested",
+        "recalled",
+      ],
       default: "pending",
     },
     delegatedTo: {

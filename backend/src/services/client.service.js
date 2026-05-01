@@ -1,8 +1,7 @@
-import { useModels } from "../utils/tenantContext.js";
+import { Client } from "../models/admin/client.model.js";
 import { ApiError } from "../utils/ApiError.js";
 
 const getClientsService = async (queryParams) => {
-  const { Client } = useModels();
   const { page = 1, limit = 10, search = "" } = queryParams;
 
   const query = search
@@ -19,14 +18,12 @@ const getClientsService = async (queryParams) => {
 };
 
 const getClientByIdService = async (id) => {
-  const { Client } = useModels();
   const client = await Client.findById(id);
   if (!client) throw new ApiError(404, "Client not found");
   return client;
 };
 
 const createClientService = async (data) => {
-  const { Client } = useModels();
   return await Client.create(data);
 };
 

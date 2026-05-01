@@ -1,5 +1,7 @@
 import { ApiError } from "../utils/ApiError.js";
 import { useModels, useTenantId } from "../utils/tenantContext.js";
+import { getLookupQuery } from "../utils/lookupHelper.js";
+import { enrichWithWorkflowState } from "../utils/workflowHelper.js";
 
 /**
  * Helper to extract ID from string or object
@@ -24,18 +26,11 @@ const registerUserService = async (userData) => {
     department,
     password,
     accessType,
+    roleAssignments = [],
   } = userData;
 
   if (
-    [
-      email,
-      fullName,
-      userRole,
-      workflowRole,
-      department,
-      password,
-      accessType,
-    ].some(
+    [email, fullName, userRole, workflowRole, password, accessType].some(
       (field) =>
         field === null || field === undefined || String(field).trim() === "",
     )
@@ -43,8 +38,9 @@ const registerUserService = async (userData) => {
     throw new ApiError(400, "All Fields are Mandatory!!");
   }
 
-  if (accessType !== "user") {
-    throw new ApiError(400, "Access Type must be 'User'!!");
+  // Handle department optionality for vendors
+  if (accessType === "user" && !department) {
+    throw new ApiError(400, "Department is Mandatory for System Users!!");
   }
 
   const checkEmail = await User.findOne({ email });
@@ -53,17 +49,21 @@ const registerUserService = async (userData) => {
     throw new ApiError(409, "User Already Exists with Email !!");
   }
 
+  const uRoleId = extractId(userRole);
+  const wRoleId = extractId(workflowRole);
+  const deptId = extractId(department);
+
   const [getUserRole, getDepartment, getWorkflowRole] = await Promise.all([
-    UserRole.findById(userRole),
-    Department.findById(department),
-    WorkflowRole.findById(workflowRole),
+    UserRole.findById(uRoleId),
+    deptId ? Department.findById(deptId) : Promise.resolve(null),
+    WorkflowRole.findById(wRoleId),
   ]);
 
   if (!getUserRole || !getUserRole.isActive) {
     throw new ApiError(400, "User Role does not Exists or is InActive!!");
   }
 
-  if (!getDepartment || !getDepartment.isActive) {
+  if (department && (!getDepartment || !getDepartment.isActive)) {
     throw new ApiError(400, "Department does not exits or is InActive !!");
   }
 
@@ -71,29 +71,40 @@ const registerUserService = async (userData) => {
     throw new ApiError(400, "Workflow Role does not exists or is InActive!!");
   }
 
+  // Ensure default role is in assignments
+  let finalAssignments = [...roleAssignments];
+  const hasDefault = finalAssignments.some((a) => a.isDefault);
+
+  if (!hasDefault) {
+    // If no default marked in array, use the top-level selection as default
+    finalAssignments.push({ userRole, workflowRole, isDefault: true });
+  }
+
+  const defaultAssignment = finalAssignments.find((a) => a.isDefault) || {
+    userRole,
+    workflowRole,
+  };
+
   const newUser = await User.create({
     email,
     fullName,
     password,
-    userRoles: [userRole],
-    workflowRoles: [workflowRole],
-    roleAssignments: [{ userRole, workflowRole }],
-    defaultRoleAssignment: { userRole, workflowRole },
-    activeRole: userRole,
-    activeWorkflowRole: workflowRole,
-    department,
+    roleAssignments: finalAssignments.map((a) => ({
+      userRole: extractId(a.userRole),
+      workflowRole: extractId(a.workflowRole),
+      isDefault: !!a.isDefault,
+    })),
+    defaultRoleAssignment: {
+      userRole: extractId(defaultAssignment.userRole),
+      workflowRole: extractId(defaultAssignment.workflowRole),
+    },
+    activeRole: extractId(defaultAssignment.userRole),
+    activeWorkflowRole: extractId(defaultAssignment.workflowRole),
+    department: deptId,
     accessType,
   });
 
-  const user = await User.findById(newUser._id)
-    .select("-password -refreshToken")
-    .lean();
-
-  if (!user) {
-    throw new ApiError(500, "An Error Occured while Registering User!!");
-  }
-
-  return user;
+  return await getUserWithAccess(newUser._id);
 };
 
 /**
@@ -101,32 +112,39 @@ const registerUserService = async (userData) => {
  */
 const getUserWithAccess = async (userId) => {
   const { User } = useModels();
-  const user = await User.findById(userId)
+  const query = getLookupQuery(userId, "userCode");
+  const user = await User.findOne(query)
     .select("-password -refreshToken")
+    .populate("createdBy updatedBy", "fullName")
     .populate({
       path: "activeRole",
       select: "roleCode description menus isActive",
       populate: {
         path: "menus.menuId",
         select:
-          "menuId description parentMenu sortOrder icon permissions isActive",
+          "menuId description parentMenu sortOrder icon menuLevel menuType permissions isActive",
       },
     })
     .populate({
       path: "department",
-      select: "departmentName isActive",
+      select: "departmentName isActive description deptCode",
     })
     .populate({
       path: "activeWorkflowRole",
-      select: "roleName approvalLevel isActive",
+      select: "wfRoleCode roleName wfRoleType canDelegate isActive",
     })
     .populate({
-      path: "userRoles",
-      select: "roleCode description",
+      path: "defaultRoleAssignment.userRole",
+      select: "roleCode description menus isActive",
+      populate: {
+        path: "menus.menuId",
+        select:
+          "menuId description parentMenu sortOrder icon menuLevel menuType permissions isActive",
+      },
     })
     .populate({
-      path: "workflowRoles",
-      select: "roleName description",
+      path: "defaultRoleAssignment.workflowRole",
+      select: "wfRoleCode roleName wfRoleType canDelegate",
     })
     .populate({
       path: "roleAssignments.userRole",
@@ -134,7 +152,7 @@ const getUserWithAccess = async (userId) => {
     })
     .populate({
       path: "roleAssignments.workflowRole",
-      select: "roleName wfRoleType",
+      select: "wfRoleCode roleName wfRoleType canDelegate",
     })
     .lean();
 
@@ -142,20 +160,14 @@ const getUserWithAccess = async (userId) => {
     throw new ApiError(404, "User not found");
   }
 
-  // Map activeRole to userRole for frontend compatibility
-  user.userRole = user.activeRole;
-  user.workflowRole = user.activeWorkflowRole;
+  // Map for frontend form compatibility
+  // In management forms, userRole/workflowRole usually refer to the DEFAULT assignment
+  user.userRole = user.activeRole || user.defaultRoleAssignment?.userRole;
+  user.workflowRole =
+    user.defaultRoleAssignment?.workflowRole || user.activeWorkflowRole;
 
-  if (!user.activeRole?.isActive) {
-    throw new ApiError(403, "Active user role inactive");
-  }
-
-  if (!user.department?.isActive) {
-    throw new ApiError(403, "Department inactive");
-  }
-
-  if (!user.activeWorkflowRole?.isActive) {
-    throw new ApiError(403, "Active workflow role inactive");
+  if (user.activeRole && !user.activeRole?.isActive) {
+    // console.warn("Active user role inactive");
   }
 
   return user;
@@ -180,6 +192,7 @@ const getAllUsersService = async (query = {}) => {
         $or: [
           { fullName: { $regex: search, $options: "i" } },
           { email: { $regex: search, $options: "i" } },
+          { userCode: { $regex: search, $options: "i" } },
         ],
       }
     : {};
@@ -189,15 +202,48 @@ const getAllUsersService = async (query = {}) => {
     limit: parseInt(limit),
     select: "-password -refreshToken",
     populate: [
-      { path: "userRole", select: "roleName description" },
-      { path: "department", select: "departmentName" },
-      { path: "workflowRole", select: "roleName" },
+      { path: "activeRole", select: "roleCode description" },
+      { path: "department", select: "deptCode description" },
+      { path: "activeWorkflowRole", select: "wfRoleCode roleName canDelegate" },
+      {
+        path: "defaultRoleAssignment.userRole",
+        select: "roleCode description",
+      },
+      {
+        path: "defaultRoleAssignment.workflowRole",
+        select: "wfRoleCode roleName canDelegate",
+      },
+      { path: "roleAssignments.userRole", select: "roleCode description" },
+      { path: "roleAssignments.workflowRole", select: "wfRoleCode roleName" },
+      { path: "createdBy updatedBy", select: "fullName" },
     ],
     lean: true,
   });
 
   const { docs, ...pagination } = users;
-  return { data: docs, pagination };
+
+  // Map back to singular keys for frontend compatibility
+  const mappedDocs = docs.map((u) => {
+    // Priority: Default Assignment > Active Role > First Assignment
+    const defaultAssignment = u.defaultRoleAssignment || {};
+    const fallbackAssignment =
+      (u.roleAssignments && u.roleAssignments[0]) || {};
+
+    return {
+      ...u,
+      userRole:
+        defaultAssignment.userRole ||
+        u.activeRole ||
+        fallbackAssignment.userRole,
+      workflowRole:
+        defaultAssignment.workflowRole ||
+        u.activeWorkflowRole ||
+        fallbackAssignment.workflowRole,
+    };
+  });
+
+  const enrichedDocs = await enrichWithWorkflowState(mappedDocs, "User");
+  return { docs: enrichedDocs, ...pagination };
 };
 
 /**
@@ -211,35 +257,60 @@ const updateUserService = async (userId, updateData) => {
     throw new ApiError(404, "User not found");
   }
 
-  if (updateData.userRole) {
-    const role = await UserRole.findById(updateData.userRole);
-    if (!role || !role.isActive) {
-      throw new ApiError(400, "Invalid User Role");
+  // Handle Role Mapping synchronization
+  if (updateData.roleAssignments) {
+    const defaultAssign = updateData.roleAssignments.find((a) => a.isDefault);
+    if (defaultAssign) {
+      const uRoleId = extractId(defaultAssign.userRole);
+      const wRoleId = extractId(defaultAssign.workflowRole);
+
+      updateData.userRole = uRoleId;
+      updateData.workflowRole = wRoleId;
+      updateData.activeRole = uRoleId;
+      updateData.activeWorkflowRole = wRoleId;
+      updateData.defaultRoleAssignment = {
+        userRole: uRoleId,
+        workflowRole: wRoleId,
+      };
+    }
+  } else if (updateData.userRole && updateData.workflowRole) {
+    // Top-level update from simplified forms
+    const uRoleId = extractId(updateData.userRole);
+    const wRoleId = extractId(updateData.workflowRole);
+
+    updateData.userRole = uRoleId;
+    updateData.workflowRole = wRoleId;
+    updateData.activeRole = uRoleId;
+    updateData.activeWorkflowRole = wRoleId;
+    updateData.defaultRoleAssignment = {
+      userRole: uRoleId,
+      workflowRole: wRoleId,
+    };
+
+    // Ensure this role is in assignments
+    const hasAssign = (user.roleAssignments || []).some(
+      (a) =>
+        a.userRole?.toString() === updateData.userRole?.toString() &&
+        a.workflowRole?.toString() === updateData.workflowRole?.toString(),
+    );
+
+    if (!hasAssign) {
+      updateData.$push = {
+        roleAssignments: {
+          userRole: updateData.userRole,
+          workflowRole: updateData.workflowRole,
+        },
+      };
     }
   }
 
-  if (updateData.department) {
-    const dept = await Department.findById(updateData.department);
-    if (!dept || !dept.isActive) {
-      throw new ApiError(400, "Invalid Department");
-    }
-  }
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $set: updateData },
+    { new: true, runValidators: true },
+  );
 
-  if (updateData.workflowRole) {
-    const wfRole = await WorkflowRole.findById(updateData.workflowRole);
-
-    if (!wfRole || !wfRole.isActive) {
-      throw new ApiError(400, "Invalid Workflow Role");
-    }
-  }
-
-  const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
-    new: true,
-  })
-    .select("-password -refreshToken")
-    .lean();
-
-  return updatedUser;
+  return await getUserWithAccess(updatedUser._id);
 };
 
 /**
@@ -284,6 +355,7 @@ const changePasswordService = async (userId, oldPassword, newPassword) => {
   }
 
   user.password = newPassword;
+  user.mustChangePassword = false;
 
   await user.save();
 
@@ -322,9 +394,13 @@ const switchRoleService = async (userId, roleId, workflowRoleId, roleCode) => {
   );
 
   if (!assignment) {
+    console.error(
+      `[SwitchRole] No assignment found for User:${userId} and Role:${targetRoleId}. Assignments:`,
+      user.roleAssignments,
+    );
     throw new ApiError(
       403,
-      "No valid role assignment found for this user role. Please contact administrator.",
+      `Unauthorized: You do not have a valid assignment for the requested role (${targetRoleId}). Please contact your administrator.`,
     );
   }
 
@@ -345,6 +421,25 @@ const switchRoleService = async (userId, roleId, workflowRoleId, roleCode) => {
   };
 };
 
+/**
+ * Reset User Password (Admin Initiated)
+ */
+const resetUserPasswordService = async (userId, tempPassword) => {
+  const { User } = useModels();
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  user.password = tempPassword;
+  user.mustChangePassword = true;
+
+  await user.save();
+
+  return true;
+};
+
 export {
   registerUserService,
   getUserWithAccess,
@@ -354,5 +449,6 @@ export {
   deactivateUserService,
   logoutUserService,
   changePasswordService,
+  resetUserPasswordService,
   switchRoleService,
 };

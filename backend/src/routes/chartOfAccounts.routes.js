@@ -13,7 +13,7 @@ const router = Router();
 router.use(verifyJWT);
 
 router.route("/").get(getCOAs).post(addCOA);
-router.route("/:id").get(getCOAById).put(updateCOA);
+router.route("/:id").get(getCOAById).patch(updateCOA);
 router.route("/:id/toggle-status").patch(toggleCOAStatus);
 
 export default router;

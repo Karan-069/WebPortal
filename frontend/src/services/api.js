@@ -43,7 +43,10 @@ api.interceptors.request.use(
 
     // Fallback to localStorage if no subdomain found (for manual selection/persistent sessions)
     if (!tenantId) {
-      tenantId = localStorage.getItem("tenantId");
+      const storedTenantId = localStorage.getItem("tenantId");
+      if (storedTenantId) {
+        tenantId = storedTenantId;
+      }
     }
 
     if (tenantId) {

@@ -1,4 +1,6 @@
 import mongoose, { Schema } from "mongoose";
+import mongoosePaginate from "mongoose-paginate-v2";
+import { auditPlugin } from "../utils/auditPlugin.js";
 
 const featureSchema = new Schema(
   {
@@ -19,5 +21,8 @@ const featureSchema = new Schema(
   },
   { timestamps: true },
 );
+
+featureSchema.plugin(mongoosePaginate);
+featureSchema.plugin(auditPlugin);
 
 export { featureSchema };

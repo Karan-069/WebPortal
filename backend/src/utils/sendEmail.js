@@ -116,13 +116,51 @@ export const sendMappedEmail = async (
     if (ccList.length) mailOptions.cc = ccList.join(",");
     if (bccList.length) mailOptions.bcc = bccList.join(",");
 
-    await transporter.sendMail(mailOptions);
-    console.info(
-      `[sendMappedEmail] Email "${eventName}" sent to ${toList.join(", ")}`,
-    );
+    const { EmailLog } = useModels();
+    try {
+      await transporter.sendMail(mailOptions);
+      console.info(
+        `[sendMappedEmail] Email "${eventName}" sent to ${toList.join(", ")}`,
+      );
+
+      // Log Success
+      if (EmailLog) {
+        await EmailLog.create({
+          eventName: eventName.toUpperCase(),
+          recipient: toList.join(", "),
+          subject: compiledSubject,
+          body: compiledHtml,
+          status: "sent",
+          transactionId: variables.transactionId || null,
+          transactionModel: variables.transactionModel || null,
+          cc: ccList,
+          bcc: bccList,
+        });
+      }
+    } catch (sendErr) {
+      console.error(
+        `[sendMappedEmail] Failed to send email for event "${eventName}":`,
+        sendErr.message,
+      );
+      // Log Failure
+      if (EmailLog) {
+        await EmailLog.create({
+          eventName: eventName.toUpperCase(),
+          recipient: toList.join(", "),
+          subject: compiledSubject,
+          body: compiledHtml,
+          status: "failed",
+          errorMessage: sendErr.message,
+          transactionId: variables.transactionId || null,
+          transactionModel: variables.transactionModel || null,
+          cc: ccList,
+          bcc: bccList,
+        });
+      }
+    }
   } catch (err) {
     console.error(
-      `[sendMappedEmail] Failed to send email for event "${eventName}":`,
+      `[sendMappedEmail] Internal error in sendMappedEmail for event "${eventName}":`,
       err.message,
     );
   }
@@ -131,11 +169,18 @@ export const sendMappedEmail = async (
 /**
  * Sends a generic direct HTML email without querying database templates.
  *
- * @param {Object} options - { to, subject, html }
+ * @param {Object} options - { to, subject, html, transactionId, transactionModel }
  */
-export const sendEmail = async ({ to, subject, html }) => {
+export const sendEmail = async ({
+  to,
+  subject,
+  html,
+  transactionId = null,
+  transactionModel = null,
+}) => {
   try {
     const transporter = await _getTransporter();
+    const { EmailLog } = useModels();
 
     // Attempt to grab generic sender email, fallback to ENV
     let fromEmail = process.env.SMTP_USER;
@@ -147,11 +192,41 @@ export const sendEmail = async ({ to, subject, html }) => {
       html,
     };
 
-    await transporter.sendMail(mailOptions);
-    console.info(`[sendEmail] Direct email sent to ${to}`);
+    try {
+      await transporter.sendMail(mailOptions);
+      console.info(`[sendEmail] Direct email sent to ${to}`);
+      if (EmailLog) {
+        await EmailLog.create({
+          eventName: "DIRECT_EMAIL",
+          recipient: to,
+          subject,
+          body: html,
+          status: "sent",
+          transactionId,
+          transactionModel,
+        });
+      }
+    } catch (sendErr) {
+      console.error(
+        `[sendEmail] Failed to send generic email to "${to}":`,
+        sendErr.message,
+      );
+      if (EmailLog) {
+        await EmailLog.create({
+          eventName: "DIRECT_EMAIL",
+          recipient: to,
+          subject,
+          body: html,
+          status: "failed",
+          errorMessage: sendErr.message,
+          transactionId,
+          transactionModel,
+        });
+      }
+    }
   } catch (err) {
     console.error(
-      `[sendEmail] Failed to send generic email to "${to}":`,
+      `[sendEmail] Internal error in sendEmail to "${to}":`,
       err.message,
     );
   }

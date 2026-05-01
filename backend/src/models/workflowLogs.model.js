@@ -16,6 +16,7 @@ const workflowLogSchema = new Schema(
         "User",
         "City",
         "State",
+        "UserRole",
       ],
     },
     transactionId: {
@@ -43,6 +44,8 @@ const workflowLogSchema = new Schema(
         "clarification_requested",
         "clarification_provided",
         "auto_notify",
+        "recalled",
+        "amend",
       ],
     },
     userId: {
@@ -56,6 +59,14 @@ const workflowLogSchema = new Schema(
     comments: {
       type: String,
       maxLength: 500,
+    },
+    version: {
+      type: Number,
+      default: 1,
+    },
+    amendmentNumber: {
+      type: Number,
+      default: 0,
     },
   },
   {

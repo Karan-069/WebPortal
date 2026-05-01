@@ -21,16 +21,17 @@ const getCOAsService = async (query) => {
       page: pageNum,
       limit: limitNum,
       sort,
+      populate: "createdBy updatedBy",
     },
   );
 
   const { docs, ...pagination } = coas;
-  return { data: docs, pagination };
+  return { docs, ...pagination };
 };
 
 const getCOAByIdService = async (id) => {
   const { ChartOfAccounts } = useModels();
-  const query = getLookupQuery(id, "coaCode");
+  const query = getLookupQuery(id, "accountCode");
   const coa = await ChartOfAccounts.findOne(query).populate(
     "createdBy updatedBy",
     "fullName",
@@ -44,7 +45,9 @@ const getCOAByIdService = async (id) => {
 const addCOAService = async (body) => {
   const { ChartOfAccounts } = useModels();
 
-  const existingCOA = await ChartOfAccounts.findOne({ coaCode: body.coaCode });
+  const existingCOA = await ChartOfAccounts.findOne({
+    accountCode: body.accountCode,
+  });
   if (existingCOA) {
     throw new ApiError(400, "Chart of Accounts code already exists!!");
   }
@@ -60,7 +63,7 @@ const addCOAService = async (body) => {
 
 const updateCOAService = async (id, body) => {
   const { ChartOfAccounts } = useModels();
-  const query = getLookupQuery(id, "coaCode");
+  const query = getLookupQuery(id, "accountCode");
 
   const existingCOA = await ChartOfAccounts.findOne(query);
   if (!existingCOA) {
@@ -82,7 +85,7 @@ const updateCOAService = async (id, body) => {
 
 const toggleCOAStatusService = async (id) => {
   const { ChartOfAccounts } = useModels();
-  const query = getLookupQuery(id, "coaCode");
+  const query = getLookupQuery(id, "accountCode");
 
   const existingCOA = await ChartOfAccounts.findOne(query);
   if (!existingCOA) throw new ApiError(404, "Chart of Accounts not found");

@@ -11,6 +11,7 @@ import {
   deactivateUser,
   logoutUser,
   changeUserPassword,
+  resetUserPassword,
   switchRole,
 } from "../controllers/user.controller.js";
 
@@ -32,5 +33,6 @@ router.patch("/deactivate/:id", verifyJWT, deactivateUser);
 router.post("/logout", verifyJWT, logoutUser);
 router.post("/change-password", verifyJWT, changeUserPassword);
 router.post("/switch-role", verifyJWT, switchRole);
+router.post("/reset-password", verifyJWT, resetUserPassword);
 
 export default router;

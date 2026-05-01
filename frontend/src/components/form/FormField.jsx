@@ -23,7 +23,7 @@ const FormField = ({
   return (
     <div className={cn("space-y-1.5", className)}>
       <div className="flex items-center gap-1.5 ml-0.5">
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em] flex items-center gap-1">
           {label}
           {required && <span className="text-red-400">*</span>}
         </label>
@@ -53,7 +53,7 @@ const FormField = ({
       <div className="relative">{children}</div>
 
       {error && (
-        <p className="text-[10px] font-black text-red-500 uppercase tracking-tighter mt-1 ml-0.5 animate-in fade-in slide-in-from-top-1">
+        <p className="text-[11px] font-bold text-red-500 uppercase tracking-[0.15em] [word-spacing:0.1em] mt-1.5 ml-0.5 animate-in fade-in slide-in-from-top-1">
           {error.message || error}
         </p>
       )}

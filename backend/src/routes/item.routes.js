@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
 import {
   getItems,
   getItemById,
@@ -11,7 +10,10 @@ import {
 
 const router = Router();
 
-router.use(verifyJWT);
+/**
+ * NOTE: verifyJWT and autoCheckPermission are applied GLOBALLY in app.js.
+ * No need for local middleware here unless specialized checks are needed.
+ */
 
 router.route("/").get(getItems).post(createItem);
 

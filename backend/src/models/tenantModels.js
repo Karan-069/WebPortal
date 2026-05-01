@@ -24,6 +24,12 @@ import { auditLogSchema } from "./auditLog.model.js";
 import { loginLogSchema } from "./loginLog.model.js";
 import { lineOfBusinessSchema } from "./lineOfBusiness.model.js";
 import { chartOfAccountsSchema } from "./chartOfAccounts.model.js";
+import { emailTemplateSchema } from "./emailTemplate.model.js";
+import { userDelegationSchema } from "./userDelegation.model.js";
+import { schedulerMasterSchema } from "./schedulerMaster.model.js";
+import { schedulerLogSchema } from "./schedulerLog.model.js";
+import { dashboardConfigSchema } from "./DashboardConfig.model.js";
+import { emailLogSchema } from "./emailLog.model.js";
 
 /**
  * Factory function to bind all business schemas to a specific database connection.
@@ -60,5 +66,11 @@ export const getTenantModels = (connection) => {
     LoginLog: connection.model("LoginLog", loginLogSchema),
     LineOfBusiness: connection.model("LineOfBusiness", lineOfBusinessSchema),
     ChartOfAccounts: connection.model("ChartOfAccounts", chartOfAccountsSchema),
+    EmailTemplate: connection.model("EmailTemplate", emailTemplateSchema),
+    UserDelegation: connection.model("UserDelegation", userDelegationSchema),
+    SchedulerMaster: connection.model("SchedulerMaster", schedulerMasterSchema),
+    SchedulerLog: connection.model("SchedulerLog", schedulerLogSchema),
+    DashboardConfig: connection.model("DashboardConfig", dashboardConfigSchema),
+    EmailLog: connection.model("EmailLog", emailLogSchema),
   };
 };

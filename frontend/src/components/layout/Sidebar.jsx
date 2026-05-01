@@ -47,6 +47,8 @@ import {
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { apiRegistry } from "../../config/apiRegistry";
+import { hasPermission } from "../../lib/permissions";
+import api from "../../services/api";
 
 const ICON_MAP = {
   dashboard: <LayoutDashboard className="w-5 h-5" />,
@@ -101,33 +103,40 @@ export default function Sidebar({ appName = "WebPortal" }) {
     );
   };
 
-  // Build menu tree from user role menus, using menuType/menuLevel for hierarchy
+  const [apiMenus, setApiMenus] = useState([]);
+  const [fetching, setFetching] = useState(true);
+
+  useEffect(() => {
+    const fetchMenus = async () => {
+      try {
+        const res = await api.get("/app-menus/my-menus?forSidebar=true");
+        setApiMenus(res.data.data);
+      } catch (err) {
+        console.error("Failed to fetch sidebar menus", err);
+      } finally {
+        setFetching(false);
+      }
+    };
+    fetchMenus();
+  }, [user?.activeRole, user?.isSuperAdmin]); // Re-fetch if role or admin status changes
+
+  // Build menu tree from API response
   const menuTree = useMemo(() => {
-    const rawMenus = user?.userRole?.menus || [];
-    if (!rawMenus.length) return [];
+    if (!apiMenus.length) return [];
 
-    // De-duplicate
-    const seen = new Set();
-    const uniqueMenus = rawMenus.filter((m) => {
-      const id = String(m.menuId?._id);
-      if (seen.has(id)) return false;
-      seen.add(id);
-      return true;
-    });
-
-    const flat = uniqueMenus.map((m) => ({
-      id: String(m.menuId?._id),
-      menuId: m.menuId?.menuId,
-      description: m.menuId?.description,
-      icon:
-        m.menuId?.icon || apiRegistry[m.menuId?.menuId?.toLowerCase()]?.icon,
-      parentMenu: m.menuId?.parentMenu ? String(m.menuId.parentMenu) : null,
-      sortOrder: m.menuId?.sortOrder || 0,
-      menuLevel: m.menuId?.menuLevel ?? 0,
-      menuType: m.menuId?.menuType || "page",
+    const flat = apiMenus.map((m) => ({
+      id: String(m._id),
+      menuId: m.menuId,
+      description: m.description,
+      icon: m.icon || apiRegistry[m.menuId?.toLowerCase()]?.icon,
+      parentMenu: m.parentMenu ? String(m.parentMenu) : null,
+      sortOrder: m.sortOrder || 0,
+      menuLevel: m.menuLevel ?? 0,
+      menuType: m.menuType || "page",
       slug:
-        m.menuId?.menuId ||
-        m.menuId?.description?.toLowerCase().replace(/\s+/g, ""),
+        m.slug ||
+        m.menuId?.toLowerCase().replace(/\s+/g, "") ||
+        m.description?.toLowerCase().replace(/\s+/g, ""),
     }));
 
     const tree = [];
@@ -152,7 +161,7 @@ export default function Sidebar({ appName = "WebPortal" }) {
     });
 
     return tree;
-  }, [user]);
+  }, [apiMenus]);
 
   // Auto-expand parent if child is active
   useEffect(() => {
@@ -271,7 +280,6 @@ export default function Sidebar({ appName = "WebPortal" }) {
           className={`
             flex items-center px-3 py-2.5 transition-all cursor-pointer group rounded-lg mx-2 my-0.5
             ${isActive && !isFolder ? "bg-indigo-50/80 border-l-2 border-indigo-500" : "hover:bg-slate-50 border-l-2 border-transparent"}
-            ${level > 0 && sidebarOpen ? "ml-6" : ""}
           `}
           title={!sidebarOpen ? displayLabel : undefined}
         >
@@ -319,7 +327,7 @@ export default function Sidebar({ appName = "WebPortal" }) {
         </div>
 
         {sidebarOpen && isFolder && isOpen && (
-          <ul className="mt-0.5 animate-in slide-in-from-top-1 duration-200 border-l border-slate-100 ml-6">
+          <ul className="mt-0.5 animate-in slide-in-from-top-1 duration-200 border-l border-slate-100 ml-4">
             {item.children.map((child) => renderNavItem(child, level + 1))}
           </ul>
         )}
@@ -348,7 +356,7 @@ export default function Sidebar({ appName = "WebPortal" }) {
           flex flex-col h-screen bg-white border-r border-slate-200 z-[110] 
           ${
             isDesktop
-              ? `sticky top-0 transition-all duration-300 ease-in-out ${isExpanded ? "w-64" : "w-[68px]"}`
+              ? `sticky top-0 transition-all duration-300 ease-in-out ${isExpanded ? "w-[280px]" : "w-[68px]"}`
               : `fixed top-0 left-0 transition-transform duration-300 ease-in-out w-72 ${isExpanded ? "translate-x-0" : "-translate-x-full"}`
           }
         `}
@@ -363,7 +371,7 @@ export default function Sidebar({ appName = "WebPortal" }) {
             </div>
             {isExpanded && (
               <div className="flex flex-col leading-none min-w-0">
-                <span className="text-lg font-black tracking-tighter text-slate-900 uppercase italic">
+                <span className="text-lg font-black tracking-[0.1em] text-slate-900 uppercase italic">
                   Anti-G
                 </span>
                 <span className="text-[9px] font-bold text-slate-400 tracking-[0.2em] uppercase">
@@ -391,28 +399,35 @@ export default function Sidebar({ appName = "WebPortal" }) {
         )}
 
         {/* Navigation Area */}
-        <div className="flex-1 overflow-y-auto pt-2 pb-6 scroll-smooth">
-          <ul className="space-y-0.5">
-            {menuTree
-              .filter((item) => {
-                if (!searchTerm) return true;
-                const label =
-                  apiRegistry[item.slug?.toLowerCase()]?.title ||
-                  item.description;
-                const matchesSelf = label
-                  ?.toLowerCase()
-                  .includes(searchTerm.toLowerCase());
-                const matchesChild = item.children?.some((c) => {
-                  const childLabel =
-                    apiRegistry[c.slug?.toLowerCase()]?.title || c.description;
-                  return childLabel
+        <div className="flex-1 overflow-y-auto pt-2 pb-6 scroll-smooth no-scrollbar">
+          {fetching ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <ul className="space-y-0.5">
+              {menuTree
+                .filter((item) => {
+                  if (!searchTerm) return true;
+                  const label =
+                    apiRegistry[item.slug?.toLowerCase()]?.title ||
+                    item.description;
+                  const matchesSelf = label
                     ?.toLowerCase()
                     .includes(searchTerm.toLowerCase());
-                });
-                return matchesSelf || matchesChild;
-              })
-              .map((item) => renderNavItem(item))}
-          </ul>
+                  const matchesChild = item.children?.some((c) => {
+                    const childLabel =
+                      apiRegistry[c.slug?.toLowerCase()]?.title ||
+                      c.description;
+                    return childLabel
+                      ?.toLowerCase()
+                      .includes(searchTerm.toLowerCase());
+                  });
+                  return matchesSelf || matchesChild;
+                })
+                .map((item) => renderNavItem(item))}
+            </ul>
+          )}
         </div>
 
         {/* Footer — Pin toggle (desktop) / Close (mobile) */}
@@ -430,15 +445,15 @@ export default function Sidebar({ appName = "WebPortal" }) {
                   {sidebarPinned ? (
                     <>
                       <PinOff className="w-4 h-4 mr-2.5" />
-                      <span className="text-xs uppercase tracking-widest flex-1 text-left">
-                        Unpin
+                      <span className="text-[11px] font-bold uppercase tracking-[0.15em] [word-spacing:0.1em] flex-1 text-left">
+                        Unpin Sidebar
                       </span>
                     </>
                   ) : (
                     <>
                       <Pin className="w-4 h-4 mr-2.5" />
-                      <span className="text-xs uppercase tracking-widest flex-1 text-left">
-                        Pin Open
+                      <span className="text-[11px] font-bold uppercase tracking-[0.15em] [word-spacing:0.1em] flex-1 text-left">
+                        Pin Workspace
                       </span>
                     </>
                   )}

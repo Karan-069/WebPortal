@@ -11,10 +11,10 @@ import mongoose from "mongoose";
 export const getLookupQuery = (identifier, codeField) => {
   if (!identifier) return null;
 
-  // Use _id if it's a valid ObjectId, otherwise fallback to the codeField
   if (mongoose.Types.ObjectId.isValid(identifier)) {
     return { _id: identifier };
   }
 
-  return { [codeField]: identifier };
+  // Fallback to case-insensitive lookup for business codes
+  return { [codeField]: { $regex: `^${identifier}$`, $options: "i" } };
 };

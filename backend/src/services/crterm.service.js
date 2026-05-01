@@ -8,25 +8,33 @@ const getCrtermsService = async (query) => {
   const {
     page: requestedPage = 1,
     limit: requestedLimit = 50,
+    search = "",
     sortBy,
     sortOrder,
   } = query;
   const pageNum = parseInt(requestedPage) > 0 ? parseInt(requestedPage) : 1;
   const limitNum = parseInt(requestedLimit) > 0 ? parseInt(requestedLimit) : 50;
 
+  const filter = {};
+  if (search) {
+    filter.$or = [
+      { termCode: { $regex: search, $options: "i" } },
+      { description: { $regex: search, $options: "i" } },
+    ];
+  }
+
   const sort = {};
   if (sortBy && sortOrder) {
     sort[sortBy] = sortOrder === "desc" ? -1 : 1;
+  } else {
+    sort.createdAt = -1;
   }
 
-  const termsData = await Crterm.paginate(
-    {},
-    {
-      page: pageNum,
-      limit: limitNum,
-      sort: sort,
-    },
-  );
+  const termsData = await Crterm.paginate(filter, {
+    page: pageNum,
+    limit: limitNum,
+    sort: sort,
+  });
 
   const { docs, totalDocs, totalPages, page, limit } = termsData;
   return { docs, totalDocs, totalPages, page, limit };

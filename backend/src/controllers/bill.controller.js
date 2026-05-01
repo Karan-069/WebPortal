@@ -18,7 +18,7 @@ const createBill = asyncHandler(async (req, res) => {
 });
 
 const getBills = asyncHandler(async (req, res) => {
-  const result = await getBillsService(req.query);
+  const result = await getBillsService(req.query, req.user);
   return res
     .status(200)
     .json(new ApiResponse(200, result, "Bills fetched successfully"));

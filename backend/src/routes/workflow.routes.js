@@ -9,6 +9,7 @@ import {
   updateWorkflow,
   toggleWorkflowStatus,
   amendWorkflow,
+  getWorkflowState,
 } from "../controllers/workflow.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -19,6 +20,7 @@ router.use(verifyJWT);
 router.route("/initiate").post(initiateWorkflow);
 router.route("/amend").post(amendWorkflow);
 router.route("/action").post(processAction);
+router.route("/get-state").get(getWorkflowState);
 router.route("/bulk-action").post(bulkProcessActions);
 
 // Administrative Definitions

@@ -1,6 +1,6 @@
-import React from "react";
-import { Save, X, Loader2 } from "lucide-react";
+import { Save, ArrowLeft } from "lucide-react";
 import { cn } from "../../lib/utils";
+import Button from "../ui/Button";
 
 /**
  * FormActionBar Component
@@ -20,49 +20,57 @@ const FormActionBar = ({
   return (
     <div
       className={cn(
-        "fixed bottom-0 left-0 right-0 md:left-64 bg-white/80 backdrop-blur-md border-t border-slate-200 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-center justify-between z-20 transition-all",
+        "sticky bottom-0 bg-white/95 backdrop-blur-md border-2 border-slate-300/50 p-4 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] flex items-center justify-between z-20 mt-12 mb-4 transition-all mx-1",
         className,
       )}
     >
-      <div className="flex flex-col ml-4">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-          Form Status
-        </span>
-        <span className="text-xs font-bold text-slate-600">
-          {isDirty ? "Unsaved changes" : "All changes saved"}
-        </span>
+      <div className="flex items-center gap-6">
+        <div className="flex flex-col border-r border-slate-100 pr-6 mr-1">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">
+            Live Status
+          </span>
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                "w-1.5 h-1.5 rounded-full animate-pulse",
+                isDirty ? "bg-amber-500" : "bg-emerald-500",
+              )}
+            />
+            <span className="text-[11px] font-bold text-slate-600">
+              {isDirty ? "Unsaved Changes" : "Draft Saved"}
+            </span>
+          </div>
+        </div>
+
+        {onCancel && (
+          <Button
+            variant="secondary"
+            onClick={onCancel}
+            type="button"
+            disabled={disabled}
+            isLoading={isSubmitting}
+            size="sm"
+            leftIcon={<ArrowLeft size={14} />}
+          >
+            {cancelLabel}
+          </Button>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="inline-flex items-center justify-center rounded-xl text-sm font-bold transition-all border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 h-11 px-6 shadow-sm disabled:opacity-50"
-            disabled={disabled || isSubmitting}
-          >
-            {cancelLabel}
-          </button>
-        )}
-
         {children}
 
         {onSubmit && (
-          <button
+          <Button
+            type="submit"
             onClick={onSubmit}
-            disabled={disabled || isSubmitting}
-            className="inline-flex items-center justify-center rounded-xl text-sm font-black transition-all bg-slate-900 text-white hover:bg-slate-800 h-11 px-10 shadow-lg shadow-slate-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+            disabled={disabled}
+            isLoading={isSubmitting}
+            variant="primary"
+            leftIcon={<Save size={14} />}
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" /> Processing...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" /> {submitLabel}
-              </>
-            )}
-          </button>
+            {submitLabel}
+          </Button>
         )}
       </div>
     </div>

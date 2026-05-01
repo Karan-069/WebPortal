@@ -25,7 +25,10 @@ const getStatesService = async (query) => {
       page: pageNum,
       limit: limitNum,
       sort: sort,
-      populate: { path: "createdBy updatedBy", select: "fullName" },
+      populate: [
+        { path: "createdBy", select: "fullName" },
+        { path: "updatedBy", select: "fullName" },
+      ],
     },
   );
 

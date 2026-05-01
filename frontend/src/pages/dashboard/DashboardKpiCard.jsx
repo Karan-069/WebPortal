@@ -50,7 +50,9 @@ export default function DashboardKpiCard({ cardConfig }) {
       className="rounded-2xl border border-slate-100 bg-white shadow-sm transition-all duration-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5"
     >
       <div className="flex flex-row items-center justify-between p-6 pb-2">
-        <h3 className="text-sm font-bold text-slate-500">{cardConfig.title}</h3>
+        <h3 className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.15em] [word-spacing:0.1em]">
+          {cardConfig.title}
+        </h3>
         <div
           className={`flex h-9 w-9 items-center justify-center rounded-xl ${cardConfig.bgClass}`}
         >
@@ -63,7 +65,9 @@ export default function DashboardKpiCard({ cardConfig }) {
             <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
           </div>
         ) : error ? (
-          <div className="text-sm font-medium text-red-400">Failed to load</div>
+          <div className="text-[11px] font-bold text-red-500 uppercase tracking-[0.15em]">
+            Registry Error
+          </div>
         ) : (
           <div
             className={`font-mono text-2xl font-bold ${cardConfig.colorClass}`}
@@ -71,8 +75,8 @@ export default function DashboardKpiCard({ cardConfig }) {
             {data.value}
           </div>
         )}
-        <p className="text-xs text-slate-400 mt-1 min-h-4">
-          {loading ? "Crunching numbers..." : data.desc}
+        <p className="text-[10px] text-slate-400 mt-1 min-h-4 font-bold uppercase tracking-tight">
+          {loading ? "Analyzing..." : data.desc}
         </p>
       </div>
     </div>

@@ -1,18 +1,17 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   X,
   Clock,
   User,
-  MessageSquare,
   CheckCircle2,
   XCircle,
   UserPlus,
   HelpCircle,
   Activity,
-  ShieldAlert,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import StatusBadge from "./StatusBadge";
+import Button from "./Button";
 
 const ACTION_ICONS = {
   submit: (
@@ -42,7 +41,7 @@ const ACTION_ICONS = {
   ),
   clarification_provided: (
     <div className="p-1.5 bg-sky-50 border border-sky-100 rounded-md">
-      <MessageSquare className="w-3.5 h-3.5 text-sky-600" />
+      <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
     </div>
   ),
   auto_notify: (
@@ -53,16 +52,9 @@ const ACTION_ICONS = {
 };
 
 export default function WorkflowTrailPanel({ isOpen, onClose, history = [] }) {
-  const [activeTab, setActiveTab] = useState("workflow"); // 'workflow' or 'audit'
-
   if (!isOpen) return null;
 
-  const workflowLogs = history.filter(
-    (log) => log.StageStatus !== "auto_notify",
-  );
-  const auditLogs = history.filter((log) => log.StageStatus === "auto_notify");
-
-  const currentLogs = activeTab === "workflow" ? workflowLogs : auditLogs;
+  const logs = history.filter((log) => log.StageStatus !== "auto_notify");
 
   return (
     <div className="fixed inset-0 z-[200] overflow-hidden">
@@ -75,69 +67,35 @@ export default function WorkflowTrailPanel({ isOpen, onClose, history = [] }) {
         <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900 tracking-tight">
-              Timeline
+              Workflow Trail
             </h2>
             <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
-              Transaction History
+              Approval Path
             </p>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded transition-colors"
+            className="w-10 h-10 p-0 text-slate-400 hover:text-slate-900 shadow-none"
           >
-            <X className="w-5 h-5 text-slate-400" />
-          </button>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex border-b border-slate-100 p-1 bg-slate-50/50">
-          <button
-            onClick={() => setActiveTab("workflow")}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold transition-all rounded ${
-              activeTab === "workflow"
-                ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-                : "text-slate-400 hover:text-slate-600"
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            Workflow
-            {workflowLogs.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px]">
-                {workflowLogs.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab("audit")}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-bold transition-all rounded ${
-              activeTab === "audit"
-                ? "bg-white text-slate-900 shadow-sm border border-slate-200"
-                : "text-slate-400 hover:text-slate-600"
-            }`}
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            System Audit
-            {auditLogs.length > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px]">
-                {auditLogs.length}
-              </span>
-            )}
-          </button>
+            <X className="w-5 h-5" />
+          </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-8">
-          {currentLogs.length === 0 ? (
+          {logs.length === 0 ? (
             <div className="text-center py-20 px-4">
               <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
                 <Clock className="w-6 h-6 text-slate-200" />
               </div>
               <p className="text-sm text-slate-400 font-medium italic">
-                No logs found in this category.
+                No workflow history recorded.
               </p>
             </div>
           ) : (
             <div className="relative space-y-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100">
-              {currentLogs.map((log, idx) => (
+              {logs.map((log, idx) => (
                 <div key={log._id || idx} className="relative pl-8">
                   <div className="absolute left-[-2px] top-1 z-10">
                     {ACTION_ICONS[log.StageStatus] || ACTION_ICONS.submit}
@@ -146,9 +104,7 @@ export default function WorkflowTrailPanel({ isOpen, onClose, history = [] }) {
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        {log.StageStatus === "auto_notify"
-                          ? "System Event"
-                          : `Stage ${log.StageNo}`}
+                        Stage {log.StageNo}
                       </div>
                       <span className="text-[10px] text-slate-400 font-medium">
                         {formatDistanceToNow(new Date(log.createdAt))} ago
@@ -183,12 +139,13 @@ export default function WorkflowTrailPanel({ isOpen, onClose, history = [] }) {
         </div>
 
         <div className="p-4 bg-slate-50 border-t border-slate-200">
-          <button
+          <Button
+            variant="outline"
             onClick={onClose}
-            className="w-full py-2 bg-white border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors uppercase tracking-widest rounded shadow-sm"
+            className="w-full text-xs font-black uppercase tracking-widest h-10"
           >
-            Close Panel
-          </button>
+            Close Trail
+          </Button>
         </div>
       </div>
     </div>
